@@ -3,505 +3,13 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
-<title>متابعة سير الاختبارات الإلكتروني</title>
+<meta name="theme-color" content="#0B1D3A"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<title>منصة إدارة الاختبارات المؤسسية</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js">
-// ══════════════════════════════════════════════════════════════════
-// ✅ ADDITIONS — منصة الاختبارات المؤسسية المتكاملة
-// الإضافات الجديدة — تُضاف فوق </script> الختامي
-// ══════════════════════════════════════════════════════════════════
-
-// ─── 1. DARK MODE ──────────────────────────────────────────────────
-let _darkMode = localStorage.getItem("darkMode") === "true";
-
-function toggleDarkMode() {
-  _darkMode = !_darkMode;
-  localStorage.setItem("darkMode", _darkMode);
-  applyDarkMode();
-  const btn = document.getElementById("darkModeBtn");
-  if(btn) btn.textContent = _darkMode ? "☀️" : "🌙";
-}
-
-function applyDarkMode() {
-  const root = document.documentElement;
-  if(_darkMode) {
-    root.style.setProperty("--bg", "#0F172A");
-    root.style.setProperty("--surface", "#1E293B");
-    root.style.setProperty("--white", "#1E293B");
-    root.style.setProperty("--border", "#334155");
-    root.style.setProperty("--border2", "#475569");
-    root.style.setProperty("--text", "#F1F5F9");
-    root.style.setProperty("--mid", "#94A3B8");
-    root.style.setProperty("--muted", "#64748B");
-    root.style.setProperty("--faint", "#334155");
-    document.body.style.background = "#0F172A";
-  } else {
-    root.style.setProperty("--bg", "#EAEEF6");
-    root.style.setProperty("--surface", "#F5F7FC");
-    root.style.setProperty("--white", "#FFFFFF");
-    root.style.setProperty("--border", "#CDD4E4");
-    root.style.setProperty("--border2", "#B8C2D8");
-    root.style.setProperty("--text", "#0B1D3A");
-    root.style.setProperty("--mid", "#4E5D7A");
-    root.style.setProperty("--muted", "#8A95AE");
-    root.style.setProperty("--faint", "#C0C8D8");
-    document.body.style.background = "";
-  }
-}
-
-// ─── 2. AUDIT TRAIL ─────────────────────────────────────────────────
-if(!state.auditLog) state.auditLog = [];
-
-function addAudit(action, details, before, after) {
-  if(!state.auditLog) state.auditLog = [];
-  state.auditLog.unshift({
-    id: uid(), ts: nowISO(),
-    user: currentUser ? currentUser.name : "—",
-    role: currentUser ? currentUser.role : "—",
-    action, details,
-    before: before ? JSON.stringify(before).slice(0,200) : null,
-    after:  after  ? JSON.stringify(after).slice(0,200)  : null,
-  });
-  if(state.auditLog.length > 500) state.auditLog = state.auditLog.slice(0,500);
-  saveState();
-}
-
-// ─── 3. ENVELOPE LIFECYCLE ──────────────────────────────────────────
-const LIFECYCLE_STAGES = [
-  { key:"received",   label:"استلام المظروف",       icon:"📥", color:"#3B82F6" },
-  { key:"opened",     label:"فتح المظروف",           icon:"📂", color:"#F59E0B" },
-  { key:"approved",   label:"التوقيع والاعتماد",     icon:"✅", color:"#10B981" },
-  { key:"delivered",  label:"تسليم للمعلم",          icon:"📤", color:"#8B5CF6" },
-  { key:"correcting", label:"التصحيح",               icon:"✏️", color:"#EF4444" },
-  { key:"reviewing",  label:"المراجعة",              icon:"🔍", color:"#F97316" },
-  { key:"recording",  label:"الرصد",                 icon:"📊", color:"#06B6D4" },
-  { key:"auditing",   label:"التدقيق النهائي",       icon:"🔏", color:"#5B21B6" },
-  { key:"archived",   label:"الأرشفة",               icon:"🗄️", color:"#64748B" },
-];
-
-// ─── 4. ENVELOPE APPROVAL (اعتماد فتح المظروف) ─────────────────────
-function renderEnvelopeApproval(el) {
-  const bundles = state.bundles.filter(b => b.stage >= 0);
-  el.innerHTML = `
-  <div class="card">
-    <p class="card-title"><span class="ct-icon" style="background:#FEF3C7;color:var(--amber)">✅</span>اعتماد فتح المظاريف</p>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:16px">توقيع إلكتروني ومصادقة رسمية لفتح كل مظروف</p>
-    ${bundles.length===0 ? `<p class="empty">لا توجد مظاريف في سير العمل حالياً</p>` : `
-    <div style="display:flex;flex-direction:column;gap:10px">
-      ${bundles.map(b => {
-        const approval = (state.approvals||{})[b.id] || null;
-        const corrT = state.teachers.find(t=>t.id===b.corrector);
-        return `
-        <div class="card" style="margin:0;border:1.5px solid ${approval?'var(--green)':'var(--border)'}">
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
-            <div style="width:44px;height:44px;background:${approval?'var(--greenBg)':'var(--amberBg)'};border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px">${approval?'✅':'📂'}</div>
-            <div style="flex:1">
-              <p style="font-weight:800;color:var(--navy)">${b.subject}${b.grade?' — '+b.grade:''}</p>
-              <p style="font-size:11px;color:var(--muted);font-family:monospace">${b.barcode}</p>
-            </div>
-            <span class="tag" style="background:${approval?'var(--greenBg)':'var(--amberBg)'};color:${approval?'var(--green)':'var(--amber)'}">
-              ${approval?'✓ معتمد':'⏳ بانتظار الاعتماد'}
-            </span>
-          </div>
-          ${approval ? `
-          <div style="background:var(--greenBg);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--green)">
-            <p>رقم الاعتماد: <strong>${approval.approvalNum}</strong></p>
-            <p>تم الاعتماد: ${fmt(approval.ts)} بواسطة ${approval.approvedBy}</p>
-          </div>` : `
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-green" style="flex:1" onclick="approveEnvelope('${b.id}')">✅ اعتماد الفتح</button>
-            <button class="btn btn-outline" onclick="quickScan('${b.id}');navigateTo('ctrl_scan')">📡 عرض</button>
-          </div>`}
-        </div>`;
-      }).join('')}
-    </div>`}
-  </div>`;
-}
-
-function approveEnvelope(bundleId) {
-  const b = state.bundles.find(x=>x.id===bundleId);
-  if(!b) return;
-  if(!state.approvals) state.approvals = {};
-  const approvalNum = "APV-" + Date.now().toString(36).toUpperCase();
-  state.approvals[bundleId] = {
-    approvalNum, bundleId,
-    ts: nowISO(),
-    approvedBy: currentUser.name,
-    subject: b.subject, barcode: b.barcode,
-  };
-  addAudit("اعتماد فتح مظروف", `${b.barcode} — ${b.subject}`, null, state.approvals[bundleId]);
-  saveState();
-  toast(`✅ تم الاعتماد — رقم: ${approvalNum}`);
-  renderEnvelopeApproval(document.getElementById("pageContent"));
-}
-
-// ─── 5. AI CENTER ────────────────────────────────────────────────────
-function renderAICenter(el) {
-  const total = state.bundles.length;
-  if(total === 0) {
-    el.innerHTML = `<div class="card"><p class="empty">لا توجد بيانات كافية للتحليل الذكي</p></div>`;
-    return;
-  }
-  const done    = state.bundles.filter(b=>b.stage===state.stages.length-1).length;
-  const inProg  = state.bundles.filter(b=>b.stage>=0&&b.stage<state.stages.length-1).length;
-  const pending = state.bundles.filter(b=>b.stage<0).length;
-  const pct     = total>0?Math.round((done/total)*100):0;
-
-  // Subject analysis
-  const subjMap = {};
-  state.bundles.forEach(b=>{
-    if(!subjMap[b.subject]) subjMap[b.subject]={total:0,done:0,papers:0};
-    subjMap[b.subject].total++;subjMap[b.subject].papers+=b.count;
-    if(b.stage===state.stages.length-1) subjMap[b.subject].done++;
-  });
-  const critical = Object.entries(subjMap).filter(([,d])=>d.done===0&&d.total>0).map(([s])=>s);
-  const slow     = Object.entries(subjMap).filter(([,d])=>d.total>0&&(d.done/d.total)<0.5&&d.done>0).map(([s])=>s);
-
-  // Delay detection
-  const delayed = state.bundles.filter(b=>{
-    if(!b.examDate||b.stage===state.stages.length-1) return false;
-    return new Date(b.examDate) < new Date();
-  });
-
-  // Recommendations
-  const recs = [];
-  if(critical.length > 0)
-    recs.push({icon:"🚨",text:`${critical.length} مادة لم تبدأ التصحيح: ${critical.slice(0,3).join("، ")}`,color:"#EF4444"});
-  if(slow.length > 0)
-    recs.push({icon:"⚠️",text:`${slow.length} مادة بنسبة إنجاز أقل من 50%: ${slow.slice(0,3).join("، ")}`,color:"#F59E0B"});
-  if(delayed.length > 0)
-    recs.push({icon:"🕐",text:`${delayed.length} مظروف تجاوز تاريخ الاختبار ولم يكتمل`,color:"#F97316"});
-  if(pct >= 80)
-    recs.push({icon:"✅",text:`ممتاز! نسبة الإنجاز ${pct}% — اقترب من الاكتمال`,color:"#10B981"});
-  if(recs.length===0)
-    recs.push({icon:"📊",text:"لا توصيات حرجة — النظام يعمل بشكل طبيعي",color:"#06B6D4"});
-
-  el.innerHTML = `
-  <div class="card" style="background:linear-gradient(135deg,#0F172A,#1E3A8A);color:#fff;border:none">
-    <p style="font-size:15px;font-weight:800;margin-bottom:4px">🤖 مركز الذكاء الاصطناعي</p>
-    <p style="font-size:12px;opacity:.7">تحليل ذكي لبيانات الاختبارات وتوصيات فورية</p>
-  </div>
-
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
-    <div class="kpi-card" style="border-top-color:#10B981">
-      <div class="kpi-icon" style="background:#D1FAE5;color:#10B981">✅</div>
-      <div><div class="kpi-label">معدل الإنجاز</div><div class="kpi-value" style="color:#10B981">${pct}%</div></div>
-    </div>
-    <div class="kpi-card" style="border-top-color:#EF4444">
-      <div class="kpi-icon" style="background:#FEE2E2;color:#EF4444">🚨</div>
-      <div><div class="kpi-label">مواد حرجة</div><div class="kpi-value" style="color:#EF4444">${critical.length}</div></div>
-    </div>
-    <div class="kpi-card" style="border-top-color:#F59E0B">
-      <div class="kpi-icon" style="background:#FEF3C7;color:#F59E0B">⏳</div>
-      <div><div class="kpi-label">قيد التنفيذ</div><div class="kpi-value" style="color:#F59E0B">${inProg}</div></div>
-    </div>
-    <div class="kpi-card" style="border-top-color:#3B82F6">
-      <div class="kpi-icon" style="background:#DBEAFE;color:#3B82F6">📦</div>
-      <div><div class="kpi-label">إجمالي المظاريف</div><div class="kpi-value" style="color:#3B82F6">${total}</div></div>
-    </div>
-  </div>
-
-  <div class="card">
-    <p class="card-title">💡 التوصيات الذكية</p>
-    <div style="display:flex;flex-direction:column;gap:8px">
-      ${recs.map(r=>`
-      <div style="display:flex;align-items:center;gap:12px;background:${r.color}12;border:1px solid ${r.color}30;border-right:4px solid ${r.color};border-radius:8px;padding:12px 14px">
-        <span style="font-size:22px">${r.icon}</span>
-        <p style="font-size:13px;color:var(--text);font-weight:600">${r.text}</p>
-      </div>`).join('')}
-    </div>
-  </div>
-
-  <div class="card">
-    <p class="card-title">📊 تحليل المواد</p>
-    ${Object.entries(subjMap).sort((a,b)=>(b[1].done/Math.max(1,b[1].total))-(a[1].done/Math.max(1,a[1].total))).map(([subj,d])=>{
-      const p=Math.round((d.done/Math.max(1,d.total))*100);
-      const c=p>=80?"#10B981":p>=50?"#F59E0B":"#EF4444";
-      return `
-      <div style="margin-bottom:10px">
-        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-          <span style="font-size:13px;font-weight:700;color:var(--text)">${subj}</span>
-          <span style="font-size:12px;font-weight:800;color:${c}">${p}%</span>
-        </div>
-        <div style="height:7px;background:var(--border);border-radius:99px;overflow:hidden">
-          <div style="height:100%;width:${p}%;background:${c};border-radius:99px;transition:width .5s"></div>
-        </div>
-        <p style="font-size:10px;color:var(--muted);margin-top:2px">${d.done} مكتمل من ${d.total} · ${d.papers} ورقة</p>
-      </div>`;
-    }).join('')}
-  </div>
-
-  ${delayed.length>0 ? `
-  <div class="card" style="border:2px solid #EF4444">
-    <p class="card-title" style="color:#EF4444">🕐 مظاريف متأخرة (تجاوزت تاريخ الاختبار)</p>
-    ${delayed.map(b=>`
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
-      <span style="font-size:16px">⚠️</span>
-      <div style="flex:1">
-        <p style="font-weight:700;color:var(--navy)">${b.subject} — ${b.barcode}</p>
-        <p style="font-size:11px;color:#EF4444">تاريخ الاختبار: ${b.examDate}</p>
-      </div>
-    </div>`).join('')}
-  </div>` : ''}`;
-}
-
-// ─── 6. SCHOOL DISPLAY MODE ──────────────────────────────────────────
-function renderSchoolDisplay(el) {
-  const total = state.bundles.length;
-  const done  = state.bundles.filter(b=>b.stage===state.stages.length-1).length;
-  const pct   = total>0?Math.round((done/total)*100):0;
-
-  const urgentNotifs = (state.notifLog||[]).filter(n=>n.type==='urgent').slice(0,3);
-
-  // Subject status
-  const subjMap = {};
-  state.bundles.forEach(b=>{
-    if(!subjMap[b.subject]) subjMap[b.subject]={done:0,total:0};
-    subjMap[b.subject].total++;
-    if(b.stage===state.stages.length-1) subjMap[b.subject].done++;
-  });
-
-  el.innerHTML = `
-  <div style="background:linear-gradient(145deg,var(--navy),#1E3A8A);border-radius:16px;padding:28px;margin-bottom:16px;color:#fff;text-align:center">
-    <p style="font-size:14px;opacity:.7;margin-bottom:6px">نسبة الإنجاز العامة</p>
-    <div style="font-size:64px;font-weight:900;line-height:1">${pct}%</div>
-    <p style="font-size:13px;opacity:.7;margin-top:8px">${done} مكتمل من ${total} مظروف</p>
-    <div style="height:8px;background:rgba(255,255,255,.2);border-radius:99px;margin-top:16px;overflow:hidden">
-      <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#22C55E,#16A34A);border-radius:99px;transition:width 1s"></div>
-    </div>
-  </div>
-
-  ${urgentNotifs.length>0 ? `
-  <div class="card" style="border:2px solid #EF4444;background:#FEF2F2">
-    <p class="card-title" style="color:#EF4444">🚨 تنبيهات عاجلة</p>
-    ${urgentNotifs.map(n=>`
-    <div style="padding:8px 0;border-bottom:1px solid #FEE2E2">
-      <p style="font-size:13px;font-weight:700;color:#991B1B">${n.message}</p>
-      <p style="font-size:11px;color:#EF4444">${fmt(n.ts)}</p>
-    </div>`).join('')}
-  </div>` : ''}
-
-  <div class="card">
-    <p class="card-title">📚 حالة المواد</p>
-    <div style="display:flex;flex-direction:column;gap:8px">
-      ${Object.entries(subjMap).map(([subj,d])=>{
-        const p=Math.round((d.done/Math.max(1,d.total))*100);
-        const isDone=p===100;
-        const isLate=p<30;
-        const c=isDone?"#10B981":isLate?"#EF4444":"#F59E0B";
-        return `
-        <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:${c}10;border-radius:10px;border-right:4px solid ${c}">
-          <span style="font-size:18px">${isDone?'✅':isLate?'🔴':'🟡'}</span>
-          <div style="flex:1">
-            <p style="font-weight:700;color:var(--navy)">${subj}</p>
-            <div style="height:5px;background:var(--border);border-radius:99px;margin-top:4px;overflow:hidden">
-              <div style="height:100%;width:${p}%;background:${c};border-radius:99px"></div>
-            </div>
-          </div>
-          <span style="font-size:14px;font-weight:900;color:${c}">${p}%</span>
-        </div>`;
-      }).join('')}
-    </div>
-  </div>
-
-  <div style="text-align:center;color:var(--muted);font-size:11px;margin-top:8px">
-    🔄 آخر تحديث: ${new Date().toLocaleTimeString("ar-SA")}
-    &nbsp;·&nbsp; ${state.schoolName}
-  </div>`;
-
-  // Auto-refresh every 60s if in display mode
-  if(currentPage === "display") {
-    clearTimeout(window._displayRefresh);
-    window._displayRefresh = setTimeout(()=>renderSchoolDisplay(document.getElementById("pageContent")), 60000);
-  }
-}
-
-// ─── 7. AUDIT LOG PAGE ──────────────────────────────────────────────
-function renderAuditLog(el) {
-  const logs = state.auditLog || [];
-  el.innerHTML = `
-  <div class="card">
-    <p class="card-title"><span class="ct-icon" style="background:#EDE9FE;color:#5B21B6">🔐</span>سجل التدقيق الكامل</p>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:14px">${logs.length} عملية مسجّلة — لا يمكن الحذف</p>
-    ${logs.length===0 ? `<p class="empty">لا توجد عمليات مسجّلة بعد</p>` : `
-    <div style="display:flex;flex-direction:column;gap:8px">
-      ${logs.slice(0,50).map(l=>`
-      <div style="background:var(--bg);border-radius:8px;padding:10px 13px;border:1px solid var(--border)">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-          <span style="font-weight:700;color:var(--navy);font-size:13px">${l.action}</span>
-          <span style="font-size:10px;color:var(--muted)">${fmt(l.ts)}</span>
-        </div>
-        <p style="font-size:12px;color:var(--mid)">${l.details||""}</p>
-        <p style="font-size:11px;color:var(--muted)">المستخدم: ${l.user} · الدور: ${ROLE_LABEL[l.role]||l.role}</p>
-      </div>`).join('')}
-      ${logs.length>50?`<p style="text-align:center;font-size:12px;color:var(--muted)">... و ${logs.length-50} عملية أخرى</p>`:``}
-    </div>`}
-  </div>`;
-}
-
-// ─── 8. NOTIFICATION RESPONSE TRACKING ──────────────────────────────
-const RESPONSE_STATUS = [
-  {key:"responded", label:"تم الاستجابة",   icon:"🟢", color:"#10B981"},
-  {key:"pending",   label:"جاري المتابعة",  icon:"🟡", color:"#F59E0B"},
-  {key:"no_resp",   label:"لم يستجب",       icon:"🔴", color:"#EF4444"},
-  {key:"excused",   label:"اعتذر",          icon:"⚪", color:"#94A3B8"},
-  {key:"absent",    label:"غير متواجد",     icon:"⚫", color:"#374151"},
-];
-
-function setNotifResponse(notifId, statusKey) {
-  const idx = state.notifLog.findIndex(n=>n.id===notifId);
-  if(idx < 0) return;
-  state.notifLog[idx].responseStatus = statusKey;
-  state.notifLog[idx].responseTs = nowISO();
-  saveState();
-  toast("تم تحديث حالة الاستجابة ✅");
-  renderNotifLog(document.getElementById("pageContent"));
-}
-
-// ─── 9. EXTENDED NAVIGATION ─────────────────────────────────────────
-// Override PAGES to add new pages
-PAGES.admin.push(
-  {k:"ai_center",  icon:"🤖", label:"الذكاء الاصطناعي"},
-  {k:"audit_log",  icon:"🔐", label:"سجل التدقيق"},
-  {k:"display",    icon:"📺", label:"وضع العرض"},
-);
-PAGES.controller.push(
-  {k:"envelope_approval", icon:"✅", label:"اعتماد الفتح"},
-  {k:"display",           icon:"📺", label:"وضع العرض"},
-);
-PAGES.principal.push(
-  {k:"ai_center", icon:"🤖", label:"تحليل ذكي"},
-  {k:"display",   icon:"📺", label:"وضع العرض"},
-);
-
-// ─── 10. OVERRIDE navigateTo TO HANDLE NEW PAGES ──────────────────
-const _origNavigateTo = navigateTo;
-navigateTo = function(page) {
-  currentPage = page;
-  renderNav();
-  const el = document.getElementById("pageContent");
-  document.getElementById("appMain").scrollTop = 0;
-
-  switch(page) {
-    case "ai_center":          renderAICenter(el);          break;
-    case "audit_log":          renderAuditLog(el);          break;
-    case "display":            renderSchoolDisplay(el);     break;
-    case "envelope_approval":  renderEnvelopeApproval(el);  break;
-    default:
-      // Call original for all existing pages
-      _origNavigateTo(page);
-      break;
-  }
-};
-
-// ─── 11. KEYBOARD SHORTCUTS ─────────────────────────────────────────
-document.addEventListener("keydown", function(e) {
-  if(!currentUser) return;
-  if(e.altKey) {
-    switch(e.key) {
-      case "d": e.preventDefault(); toggleDarkMode(); break;
-      case "1": e.preventDefault(); navigateTo(PAGES[currentUser.role]&&PAGES[currentUser.role][0]?PAGES[currentUser.role][0].k:"ctrl_scan"); break;
-      case "2": e.preventDefault(); if(PAGES[currentUser.role]&&PAGES[currentUser.role][1]) navigateTo(PAGES[currentUser.role][1].k); break;
-      case "3": e.preventDefault(); if(PAGES[currentUser.role]&&PAGES[currentUser.role][2]) navigateTo(PAGES[currentUser.role][2].k); break;
-    }
-  }
-});
-
-// ─── 12. PATCH NOTIF LOG TO SHOW RESPONSE STATUS ────────────────────
-const _origRenderNotifLog = renderNotifLog;
-renderNotifLog = function(el) {
-  if(state.notifLog.length===0){
-    el.innerHTML=`<div class="card"><div class="empty"><span class="empty-icon">◌</span>لا توجد تنبيهات مرسلة بعد</div></div>`;
-    return;
-  }
-  el.innerHTML=`<div>${state.notifLog.map(n=>{
-    const status = RESPONSE_STATUS.find(s=>s.key===n.responseStatus) || null;
-    return `
-    <div class="nlog-card" style="border-right-color:${n.typeColor||'var(--border)'}">
-      <div style="display:flex;align-items:flex-start;gap:10px">
-        <span style="font-size:24px;flex-shrink:0">${n.typeIcon}</span>
-        <div style="flex:1">
-          <div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:5px">
-            <span style="font-weight:800;color:${n.typeColor};font-size:13px">${n.typeLabel}</span>
-            <span style="font-size:11px;color:var(--muted)">${fmt(n.ts)}</span>
-            <span style="font-size:11px;color:var(--muted)">— ${n.sentBy}</span>
-            ${status?`<span style="font-size:11px;font-weight:700;color:${status.color}">${status.icon} ${status.label}</span>`:''}
-          </div>
-          <p style="font-size:13px;color:var(--text);margin-bottom:7px">${n.message}</p>
-          <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:7px">
-            ${n.teachers.map(t=>`
-            <a href="${waLink(t.phone,n.waMsg)}" target="_blank"
-              style="display:inline-flex;align-items:center;gap:4px;background:var(--waBg);color:var(--wa);padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;text-decoration:none">
-              📲 ${t.name} <span style="font-family:monospace;font-size:10px;direction:ltr">${t.phone}</span>
-            </a>`).join('')}
-          </div>
-          <!-- Response status buttons -->
-          <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:5px">
-            ${RESPONSE_STATUS.map(s=>`
-            <button onclick="setNotifResponse('${n.id}','${s.key}')"
-              style="padding:3px 9px;border-radius:99px;border:1.5px solid ${s.color};background:${n.responseStatus===s.key?s.color:'transparent'};color:${n.responseStatus===s.key?'#fff':s.color};font-size:10px;font-weight:700;cursor:pointer;font-family:inherit">
-              ${s.icon} ${s.label}
-            </button>`).join('')}
-          </div>
-          ${n.bundle?`<p style="font-size:11px;color:var(--muted)">مظروف: <strong>${n.bundle.barcode}</strong> — ${n.bundle.subject}</p>`:''}
-        </div>
-      </div>
-    </div>`;
-  }).join('')}</div>`;
-};
-
-// ─── 13. DARK MODE BUTTON IN HEADER ─────────────────────────────────
-function injectDarkModeBtn() {
-  const header = document.getElementById("appHeader");
-  if(!header || document.getElementById("darkModeBtn")) return;
-  const btn = document.createElement("button");
-  btn.id = "darkModeBtn";
-  btn.textContent = _darkMode ? "☀️" : "🌙";
-  btn.title = "تبديل الوضع الليلي (Alt+D)";
-  btn.style.cssText = "background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;width:34px;height:34px;border-radius:8px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;margin-left:4px;transition:background .15s;";
-  btn.onmouseover = ()=>btn.style.background="rgba(255,255,255,.2)";
-  btn.onmouseout  = ()=>btn.style.background="rgba(255,255,255,.1)";
-  btn.onclick = toggleDarkMode;
-  const logout = header.querySelector(".h-logout");
-  if(logout) header.insertBefore(btn, logout);
-  else header.appendChild(btn);
-}
-
-// Patch enterShell to inject dark mode button
-const _origEnterShell = enterShell;
-enterShell = function(found, page) {
-  _origEnterShell(found, page);
-  setTimeout(injectDarkModeBtn, 100);
-};
-const _origDoLogin = doLogin;
-doLogin = function() {
-  _origDoLogin();
-  setTimeout(injectDarkModeBtn, 200);
-};
-
-// ─── 14. INIT EXTRAS ────────────────────────────────────────────────
-(function initExtras() {
-  if(!state.auditLog) state.auditLog = [];
-  if(!state.approvals) state.approvals = {};
-  applyDarkMode();
-})();
-
-// ─── 15. AUDIT PATCH: wrap key actions ──────────────────────────────
-const _origDoAdvance = doAdvance;
-doAdvance = function() {
-  if(_confirmStg===null||!_scanHit) return;
-  const stageLabel = state.stages[_confirmStg];
-  _origDoAdvance();
-  addAudit("تحديث مرحلة", `${_scanHit&&_scanHit.barcode||''} → ${stageLabel}`);
-};
-
-// ══════════════════════════════════════════════════════════════════
-// END OF ADDITIONS
-// ══════════════════════════════════════════════════════════════════
-
-</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -958,104 +466,583 @@ label.lbl{font-size:12px;color:var(--mid);display:block;margin-bottom:5px;font-w
   #appHeader{padding:0 14px}
 }
 
-/* ── DARK MODE ─────────────────────────────────────── */
-.dark-mode-btn{
-  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);
-  color:#fff;width:34px;height:34px;border-radius:8px;cursor:pointer;
-  font-size:16px;display:flex;align-items:center;justify-content:center;
-  transition:background .15s;
-}
-.dark-mode-btn:hover{background:rgba(255,255,255,.2)}
+/* ══════════════════════════════════════════════════════════
+   التطوير المؤسسي — CSS إضافي
+   ══════════════════════════════════════════════════════════ */
 
-/* ── ENTERPRISE IMPROVEMENTS ──────────────────────── */
-.kpi-card{
-  background:var(--white);border-radius:var(--r12);padding:18px;
-  box-shadow:var(--sh2);border:1px solid var(--border);
-  border-top:3px solid;display:flex;gap:12px;align-items:flex-start;
-  transition:transform .2s,box-shadow .2s;
+/* ── الوضع الليلي ─────────────────────────────────────── */
+:root {
+  --dark-bg:#0F172A; --dark-surface:#1E293B; --dark-border:#334155;
+  --dark-text:#E2E8F0; --dark-mid:#94A3B8; --dark-card:#1E293B;
 }
-.kpi-card:hover{transform:translateY(-2px);box-shadow:var(--sh3)}
-.kpi-icon{width:44px;height:44px;border-radius:var(--r10);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
-.kpi-label{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
-.kpi-value{font-size:32px;font-weight:900;margin-top:2px;letter-spacing:-1px}
-
-/* ── NAV IMPROVED ─────────────────────────────────── */
-.nav-btn{
-  padding:12px 14px;border:none;border-bottom:3px solid transparent;
-  background:none;cursor:pointer;color:var(--muted);font-weight:500;
-  font-size:12px;display:flex;align-items:center;gap:5px;white-space:nowrap;
-  font-family:'IBM Plex Sans Arabic',sans-serif;transition:all .18s;
+body.dark-mode {
+  background:var(--dark-bg) !important;
+  color:var(--dark-text) !important;
 }
-.nav-btn:hover{color:var(--navy);background:rgba(11,29,58,.05)}
-.nav-btn.active{color:var(--navy);font-weight:700;border-bottom-color:var(--gold);background:rgba(11,29,58,.04)}
+body.dark-mode .card { background:var(--dark-card) !important; border-color:var(--dark-border) !important; }
+body.dark-mode #appHeader { background:linear-gradient(135deg,#0F172A,#1E3A8A) !important; }
+body.dark-mode #appNav { background:var(--dark-surface) !important; border-color:var(--dark-border) !important; }
+body.dark-mode #appMain { background:var(--dark-bg) !important; }
+body.dark-mode .inp { background:var(--dark-surface) !important; border-color:var(--dark-border) !important; color:var(--dark-text) !important; }
+body.dark-mode .nav-btn { color:var(--dark-mid) !important; }
+body.dark-mode .nav-btn.active { color:#fff !important; }
+body.dark-mode .bundle-card { background:var(--dark-card) !important; border-color:var(--dark-border) !important; }
+body.dark-mode .stage-item { background:var(--dark-card) !important; border-color:var(--dark-border) !important; }
+body.dark-mode .list-item { background:var(--dark-surface) !important; border-color:var(--dark-border) !important; }
+body.dark-mode .info-cell { background:var(--dark-surface) !important; border-color:var(--dark-border) !important; }
 
-/* ── BUNDLE CARD IMPROVED ─────────────────────────── */
-.bundleCard{
-  background:var(--white);border-radius:var(--r12);padding:14px 16px;
-  margin-bottom:10px;box-shadow:var(--sh1);border:1px solid var(--border);
-  display:flex;align-items:center;gap:12px;transition:all .2s;
+/* ── Dark Mode Toggle ────────────────────────────────── */
+.dark-toggle {
+  background:rgba(255,255,255,.1);
+  border:1px solid rgba(255,255,255,.2);
+  border-radius:var(--r8);
+  color:rgba(255,255,255,.85);
+  cursor:pointer;
+  font-size:16px;
+  padding:5px 9px;
+  transition:all .2s;
+  line-height:1;
 }
-.bundleCard:hover{box-shadow:var(--sh3);border-color:var(--navy3);transform:translateY(-2px)}
+.dark-toggle:hover { background:rgba(255,255,255,.2); }
 
-/* ── TEACHER ROW IMPROVED ─────────────────────────── */
-.teacherRow{
-  display:flex;align-items:center;gap:10px;padding:11px 13px;
-  border-radius:var(--r10);border:1.5px solid var(--border);
-  background:var(--white);cursor:pointer;margin-bottom:6px;
-  transition:all .18s;font-family:'IBM Plex Sans Arabic',sans-serif;
-  width:100%;text-align:right;box-shadow:var(--sh1);
+/* ── تحسين بطاقات KPI ─────────────────────────────── */
+.kpi-card-v2 {
+  background:var(--white);
+  border-radius:16px;
+  padding:20px;
+  box-shadow:0 4px 20px rgba(11,29,58,.08);
+  border:1px solid rgba(205,212,228,.5);
+  transition:all .25s;
+  position:relative;
+  overflow:hidden;
 }
-.teacherRow:hover{border-color:var(--navy3);box-shadow:var(--sh2)}
-.teacherRow.selected{border-color:var(--navy);background:rgba(11,29,58,.06);box-shadow:var(--sh2)}
+.kpi-card-v2::before {
+  content:'';
+  position:absolute;
+  top:0; left:0; right:0;
+  height:3px;
+  border-radius:16px 16px 0 0;
+}
+.kpi-card-v2:hover { box-shadow:0 8px 32px rgba(11,29,58,.14); transform:translateY(-3px); }
+.kpi-card-v2 .kv-icon { font-size:28px; margin-bottom:10px; }
+.kpi-card-v2 .kv-val { font-size:34px; font-weight:900; letter-spacing:-1.5px; margin-bottom:4px; }
+.kpi-card-v2 .kv-lbl { font-size:12px; color:var(--muted); font-weight:600; letter-spacing:.3px; text-transform:uppercase; }
+.kpi-card-v2 .kv-trend { font-size:11px; font-weight:700; margin-top:6px; }
 
-/* ── NTYPE BTN ─────────────────────────────────────── */
-.ntypeBtn{
-  padding:8px 13px;border-radius:var(--r8);border:2px solid var(--border);
-  background:var(--white);cursor:pointer;font-size:12px;font-weight:500;
-  display:inline-flex;align-items:center;gap:6px;
-  font-family:'IBM Plex Sans Arabic',sans-serif;transition:all .18s;
+/* ── لوحة التحليل ────────────────────────────────── */
+.analytics-chart-wrap {
+  background:var(--white);
+  border-radius:14px;
+  padding:20px;
+  margin-bottom:14px;
   box-shadow:var(--sh1);
+  border:1px solid rgba(205,212,228,.5);
 }
-.ntypeBtn:hover{border-color:var(--border2);box-shadow:var(--sh2)}
-.ntypeBtn.active{font-weight:700;box-shadow:var(--sh2)}
-
-/* ── SETTINGS TABS ──────────────────────────────────── */
-.sTab{
-  flex:1;min-width:44px;padding:8px 4px;border:none;border-radius:var(--r8);
-  background:transparent;color:var(--muted);cursor:pointer;font-size:12px;
-  font-weight:500;font-family:'IBM Plex Sans Arabic',sans-serif;transition:all .18s;
+.analytics-chart-wrap h4 {
+  font-size:13px;
+  font-weight:700;
+  color:var(--navy);
+  margin-bottom:14px;
+  display:flex;
+  align-items:center;
+  gap:8px;
 }
-.sTab:hover{color:var(--navy)}
-.sTab.active{background:var(--navy);color:#fff;font-weight:700;box-shadow:var(--sh2)}
 
-/* ── MODAL TITLE ──────────────────────────────────── */
-.modalTitle{font-size:16px;font-weight:700;color:var(--navy);margin-bottom:16px;letter-spacing:-.2px}
+/* ── مؤشرات الحالة الجديدة ────────────────────────── */
+.status-dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-left:6px; }
+.status-green { background:#22C55E; box-shadow:0 0 6px rgba(34,197,94,.5); animation:pulse 2s infinite; }
+.status-yellow { background:#F59E0B; box-shadow:0 0 6px rgba(245,158,11,.5); }
+.status-red { background:#EF4444; box-shadow:0 0 6px rgba(239,68,68,.5); animation:pulse 1.5s infinite; }
+.status-gray { background:#94A3B8; }
 
-/* ── ANIMATED CARD ENTRANCE ──────────────────────── */
-.card{animation:fadeIn .25s ease}
+/* ── بطاقات المراحل المحسّنة ──────────────────────── */
+.stage-flow-card {
+  background:var(--white);
+  border-radius:14px;
+  padding:18px;
+  margin-bottom:12px;
+  box-shadow:var(--sh1);
+  border:1px solid rgba(205,212,228,.5);
+  display:flex;
+  align-items:center;
+  gap:14px;
+  transition:all .2s;
+  cursor:pointer;
+}
+.stage-flow-card:hover { box-shadow:var(--sh3); transform:translateX(-3px); }
+.sfc-icon { width:48px; height:48px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0; }
+.sfc-body { flex:1; min-width:0; }
+.sfc-title { font-size:14px; font-weight:700; color:var(--navy); margin-bottom:3px; }
+.sfc-meta { font-size:11px; color:var(--muted); }
 
-/* ── PAGE WRAP MAX WIDTH ─────────────────────────── */
-.page-wrap{max-width:780px;margin:0 auto;animation:fadeIn .25s ease}
+/* ── نظام سجل التدقيق ────────────────────────────── */
+.audit-entry {
+  display:flex;
+  gap:12px;
+  padding:12px 0;
+  border-bottom:1px solid var(--border);
+  align-items:flex-start;
+  animation:fadeIn .3s ease;
+}
+.audit-entry:last-child { border-bottom:none; }
+.audit-icon { width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+.audit-body { flex:1; }
+.audit-action { font-size:13px; font-weight:700; color:var(--navy); }
+.audit-detail { font-size:11px; color:var(--muted); margin-top:2px; }
+.audit-time { font-size:10px; color:var(--faint); margin-top:3px; font-family:monospace; }
 
-/* ── TOOLTIP SHORTCUT HINT ──────────────────────── */
-.shortcut-hint{
-  position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
-  background:rgba(11,29,58,.85);color:#fff;border-radius:8px;padding:8px 16px;
-  font-size:12px;z-index:8000;pointer-events:none;opacity:0;transition:opacity .25s;
+/* ── شاشة العرض المدرسية ─────────────────────────── */
+.display-mode {
+  background:linear-gradient(135deg,#0F172A,#1E3A8A,#0F172A);
+  min-height:100vh;
+  padding:30px;
+  color:#fff;
+  display:none;
+}
+.display-mode.active { display:block; }
+.dm-header { text-align:center; margin-bottom:30px; }
+.dm-school-name { font-size:36px; font-weight:900; color:#fff; margin-bottom:8px; }
+.dm-date { font-size:18px; color:rgba(255,255,255,.65); }
+.dm-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:20px; }
+.dm-subject-card {
+  background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.15);
+  border-radius:20px;
+  padding:24px;
+  backdrop-filter:blur(10px);
+  transition:all .3s;
+}
+.dm-subject-card.done { background:rgba(34,197,94,.15); border-color:rgba(34,197,94,.4); }
+.dm-subject-card.urgent { background:rgba(239,68,68,.15); border-color:rgba(239,68,68,.4); animation:pulse 2s infinite; }
+.dm-subject-name { font-size:22px; font-weight:800; margin-bottom:10px; }
+.dm-progress-bar { height:10px; background:rgba(255,255,255,.15); border-radius:99px; overflow:hidden; margin:12px 0; }
+.dm-progress-fill { height:100%; border-radius:99px; transition:width .5s; }
+.dm-percent { font-size:28px; font-weight:900; }
+
+/* ── بطاقة المظروف المحسّنة ───────────────────────── */
+.envelope-card {
+  background:var(--white);
+  border-radius:16px;
+  padding:18px;
+  margin-bottom:12px;
+  box-shadow:var(--sh1);
+  border:1.5px solid var(--border);
+  transition:all .22s;
+  cursor:pointer;
+  position:relative;
+  overflow:hidden;
+}
+.envelope-card::before {
+  content:'';
+  position:absolute;
+  right:0; top:0; bottom:0;
+  width:4px;
+  border-radius:0 4px 4px 0;
+}
+.envelope-card:hover { box-shadow:var(--sh3); border-color:var(--navy3); transform:translateX(-3px); }
+.ec-header { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+.ec-badge { min-width:48px; height:48px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+.ec-info { flex:1; }
+.ec-barcode { font-family:monospace; font-size:15px; font-weight:800; color:var(--navy); letter-spacing:1.5px; }
+.ec-subject { font-size:13px; color:var(--mid); margin-top:1px; }
+.ec-stage-badge { padding:4px 12px; border-radius:99px; font-size:11px; font-weight:700; border:1.5px solid; white-space:nowrap; }
+
+/* ── شريط تقدم متعدد الألوان ─────────────────────── */
+.multi-progress { display:flex; height:8px; border-radius:99px; overflow:hidden; gap:2px; }
+.mp-seg { flex:1; border-radius:4px; transition:all .4s; }
+
+/* ── نظام الإشعارات الداخلية ──────────────────────── */
+.notif-badge {
+  position:absolute;
+  top:-4px;
+  left:-4px;
+  background:var(--red);
+  color:#fff;
+  font-size:9px;
+  font-weight:900;
+  width:18px;
+  height:18px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border:2px solid var(--white);
+  animation:pulse 2s infinite;
+}
+
+/* ── اختصارات لوحة المفاتيح ──────────────────────── */
+.kbd-hint {
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  background:var(--bg);
+  border:1px solid var(--border);
+  border-radius:6px;
+  padding:2px 7px;
+  font-size:10px;
+  font-family:monospace;
+  color:var(--mid);
+  font-weight:700;
+  letter-spacing:.5px;
+}
+
+/* ── Sync Status Bar ────────────────────────────── */
+#syncBar {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:3px 12px;
+  background:var(--bg);
+  border-bottom:1px solid var(--border);
+  font-size:11px;
+  color:var(--muted);
+}
+#syncDot {
+  width:8px; height:8px; border-radius:50%;
+  background:#22C55E;
+  transition:all .3s;
+  flex-shrink:0;
+}
+
+/* ── جداول محسّنة ─────────────────────────────────── */
+.table-v2 { width:100%; border-collapse:separate; border-spacing:0; font-size:12px; }
+.table-v2 thead tr th {
+  background:var(--navy);
+  color:#fff;
+  padding:11px 14px;
+  text-align:right;
+  font-weight:700;
+  font-size:11px;
+  letter-spacing:.3px;
+}
+.table-v2 thead tr th:first-child { border-radius:0 10px 0 0; }
+.table-v2 thead tr th:last-child { border-radius:10px 0 0 0; }
+.table-v2 tbody tr td { padding:10px 14px; border-bottom:1px solid var(--border); vertical-align:middle; }
+.table-v2 tbody tr:hover td { background:var(--bg); }
+.table-v2 tbody tr:last-child td { border-bottom:none; }
+
+/* ── Header الجديد مع نقاط التزامن ──────────────── */
+.h-sync-wrap { display:flex; align-items:center; gap:6px; margin-left:6px; }
+.h-sync-indicator { width:8px; height:8px; border-radius:50%; background:#22C55E; transition:all .3s; }
+
+/* ── مجموعة أزرار التصفية ──────────────────────── */
+.filter-pills { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
+.filter-pill {
+  padding:5px 14px;
+  border-radius:99px;
+  border:1.5px solid var(--border);
+  background:#fff;
+  color:var(--mid);
+  cursor:pointer;
+  font-size:12px;
+  font-weight:600;
+  font-family:'IBM Plex Sans Arabic',sans-serif;
+  transition:all .18s;
+}
+.filter-pill:hover { border-color:var(--navy); color:var(--navy); }
+.filter-pill.active { background:var(--navy); color:#fff; border-color:var(--navy); }
+
+/* ── بطاقات المعلمين ─────────────────────────────── */
+.teacher-card-v2 {
+  background:var(--white);
+  border-radius:14px;
+  padding:16px;
+  margin-bottom:10px;
+  box-shadow:var(--sh1);
+  border:1.5px solid var(--border);
+  display:flex;
+  align-items:center;
+  gap:14px;
+  transition:all .2s;
+}
+.teacher-card-v2:hover { box-shadow:var(--sh2); border-color:var(--navy3); }
+.tc-avatar {
+  width:44px; height:44px; border-radius:12px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:18px; font-weight:800; color:#fff;
+  flex-shrink:0;
+}
+.tc-body { flex:1; min-width:0; }
+.tc-name { font-size:13px; font-weight:700; color:var(--navy); margin-bottom:3px; }
+.tc-meta { font-size:11px; color:var(--muted); display:flex; gap:8px; flex-wrap:wrap; }
+.tc-actions { display:flex; gap:6px; }
+
+/* ── Skeleton Loading ──────────────────────────── */
+@keyframes skeleton-shimmer {
+  0% { background-position:200% 0; }
+  100% { background-position:-200% 0; }
+}
+.skeleton {
+  background:linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%);
+  background-size:200% 100%;
+  animation:skeleton-shimmer 1.5s infinite;
+  border-radius:8px;
+}
+.sk-line { height:14px; margin-bottom:8px; }
+.sk-line.short { width:40%; }
+.sk-line.medium { width:70%; }
+.sk-line.long { width:95%; }
+.sk-box { height:80px; margin-bottom:12px; border-radius:12px; }
+
+/* ── Print improvements ──────────────────────── */
+@media print {
+  #appHeader, #appNav, #syncBar { display:none !important; }
+  #appMain { padding:0 !important; }
+  .card { box-shadow:none !important; border:1px solid #ccc !important; }
+  .btn { display:none !important; }
+}
+
+/* ── Tablet & Desktop ──────────────────────── */
+@media(min-width:768px) {
+  #appMain { padding:28px 32px; }
+  .page-wrap { max-width:960px; }
+  .kpi-grid-3 { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+  .kpi-grid-4 { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+}
+
+@media(min-width:1200px) {
+  .page-wrap { max-width:1200px; }
+  .kpi-grid-4 { grid-template-columns:repeat(4,1fr); }
+  .kpi-grid-6 { display:grid; grid-template-columns:repeat(6,1fr); gap:12px; }
+}
+
+/* ── Modal محسّن ──────────────────────────────── */
+.overlay-v2 {
+  position:fixed; inset:0;
+  background:rgba(11,29,58,.6);
+  z-index:900;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
   backdrop-filter:blur(8px);
+  animation:fadeIn .2s ease;
 }
-.shortcut-hint.show{opacity:1}
+.modal-v2 {
+  background:#fff;
+  border-radius:20px;
+  padding:28px;
+  width:100%;
+  max-width:520px;
+  box-shadow:0 32px 80px rgba(0,0,0,.3);
+  animation:fadeIn .25s ease;
+  max-height:90vh;
+  overflow-y:auto;
+}
+.modal-v2 .mv2-title {
+  font-size:18px;
+  font-weight:800;
+  color:var(--navy);
+  margin-bottom:6px;
+}
+.modal-v2 .mv2-sub {
+  font-size:12px;
+  color:var(--muted);
+  margin-bottom:20px;
+}
+
+/* ── إشعار ختم الاعتماد ──────────────────────── */
+.approval-stamp {
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  background:linear-gradient(135deg,#065F46,#059669);
+  color:#fff;
+  padding:8px 20px;
+  border-radius:10px;
+  font-size:13px;
+  font-weight:800;
+  letter-spacing:.5px;
+  box-shadow:0 4px 16px rgba(5,150,105,.4);
+}
+
+/* ── Timeline Component ──────────────────────── */
+.timeline { padding-right:16px; border-right:2px solid var(--border); }
+.tl-item {
+  position:relative;
+  padding-bottom:20px;
+}
+.tl-item:last-child { padding-bottom:0; }
+.tl-dot {
+  position:absolute;
+  right:-21px;
+  top:0;
+  width:20px; height:20px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:10px;
+  color:#fff;
+  font-weight:900;
+  border:2px solid var(--white);
+  box-shadow:0 2px 6px rgba(0,0,0,.2);
+  flex-shrink:0;
+}
+.tl-content { padding-right:20px; }
+.tl-action { font-size:13px; font-weight:700; color:var(--navy); }
+.tl-meta { font-size:11px; color:var(--muted); margin-top:2px; }
+.tl-note { font-size:11px; color:var(--mid); font-style:italic; margin-top:3px; }
+
+/* ── Sticky Actions Bar ──────────────────────── */
+.sticky-actions {
+  position:sticky;
+  bottom:0;
+  background:rgba(255,255,255,.95);
+  backdrop-filter:blur(10px);
+  border-top:1px solid var(--border);
+  padding:12px 20px;
+  display:flex;
+  gap:10px;
+  z-index:50;
+  border-radius:0 0 14px 14px;
+}
+
+/* ── AI Card ──────────────────────────────────── */
+.ai-card {
+  background:linear-gradient(135deg,#4F46E5,#7C3AED);
+  border-radius:14px;
+  padding:18px;
+  margin-bottom:12px;
+  color:#fff;
+  box-shadow:0 8px 24px rgba(79,70,229,.3);
+}
+.ai-card .ac-title { font-size:14px; font-weight:800; margin-bottom:10px; display:flex; align-items:center; gap:8px; }
+.ai-suggestion {
+  background:rgba(255,255,255,.15);
+  border-radius:10px;
+  padding:12px 14px;
+  margin-bottom:8px;
+  font-size:12px;
+  border:1px solid rgba(255,255,255,.2);
+  cursor:pointer;
+  transition:all .2s;
+}
+.ai-suggestion:hover { background:rgba(255,255,255,.25); }
+
+/* ── Search Global ──────────────────────────── */
+#globalSearchBar {
+  background:rgba(255,255,255,.12);
+  border:1px solid rgba(255,255,255,.2);
+  border-radius:10px;
+  padding:6px 12px;
+  color:#fff;
+  font-family:'IBM Plex Sans Arabic',sans-serif;
+  font-size:12px;
+  width:180px;
+  transition:all .2s;
+}
+#globalSearchBar:focus {
+  outline:none;
+  width:240px;
+  background:rgba(255,255,255,.18);
+  border-color:rgba(255,255,255,.4);
+}
+#globalSearchBar::placeholder { color:rgba(255,255,255,.5); }
+
+/* ── Page Header ──────────────────────────────── */
+.page-header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:20px;
+  flex-wrap:wrap;
+  gap:12px;
+}
+.ph-title { font-size:22px; font-weight:800; color:var(--navy); letter-spacing:-.5px; }
+.ph-sub { font-size:12px; color:var(--muted); margin-top:3px; }
+.ph-actions { display:flex; gap:8px; }
+
+/* ── Nav Tab Badges ──────────────────────────── */
+.nav-badge {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  background:var(--red);
+  color:#fff;
+  font-size:9px;
+  font-weight:900;
+  min-width:16px;
+  height:16px;
+  border-radius:8px;
+  padding:0 4px;
+  margin-right:4px;
+  vertical-align:middle;
+}
+
+/* ── Comparison Chart ──────────────────────── */
+.compare-bar-wrap {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin-bottom:8px;
+}
+.cbar-label { font-size:11px; color:var(--mid); font-weight:600; min-width:80px; text-align:right; }
+.cbar-track { flex:1; height:10px; background:var(--border); border-radius:99px; overflow:hidden; }
+.cbar-fill { height:100%; border-radius:99px; transition:width .6s cubic-bezier(.4,0,.2,1); }
+.cbar-val { font-size:11px; font-weight:800; min-width:36px; text-align:left; }
+
+/* ── PWA Install Banner ──────────────────────── */
+#pwaInstallBanner {
+  display:none;
+  position:fixed;
+  bottom:20px;
+  right:20px;
+  background:var(--navy);
+  color:#fff;
+  padding:14px 18px;
+  border-radius:14px;
+  box-shadow:var(--sh4);
+  z-index:9000;
+  font-size:13px;
+  font-weight:600;
+  animation:fadeIn .3s ease;
+  max-width:280px;
+}
+
+/* ── Floating Action Button ─────────────────── */
+.fab {
+  position:fixed;
+  bottom:24px;
+  left:24px;
+  width:52px; height:52px;
+  border-radius:50%;
+  background:linear-gradient(135deg,var(--navy),var(--navy3));
+  color:#fff;
+  border:none;
+  cursor:pointer;
+  font-size:24px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-shadow:0 6px 20px rgba(11,29,58,.35);
+  z-index:200;
+  transition:all .2s;
+}
+.fab:hover { transform:scale(1.1); box-shadow:0 10px 28px rgba(11,29,58,.45); }
 
 </style>
 </head>
 <body>
 
+<!-- شاشة العرض المدرسية الكاملة -->
+<div id="schoolDisplayMode" style="display:none;position:fixed;inset:0;background:linear-gradient(135deg,#0F172A,#1E3A8A,#0F172A);z-index:9999;overflow-y:auto;padding:30px">
+  <div style="display:flex;justify-content:flex-end;margin-bottom:20px">
+    <button onclick="toggleDisplayMode()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;padding:8px 16px;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px">✕ إغلاق العرض</button>
+  </div>
+  <div id="displayModeContent"></div>
+</div>
+
+<!-- PWA Install Banner -->
+<div id="pwaInstallBanner" style="display:none;position:fixed;bottom:20px;right:20px;background:var(--navy);color:#fff;padding:14px 18px;border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.3);z-index:9000;max-width:280px"></div>
+
+<!-- شاشة تسجيل الدخول -->
 <div id="loginScreen">
   <div class="login-card">
     <div class="login-logo">
       <div class="login-icon" style="background:none;box-shadow:none;padding:4px"><img id="loginLogo" src="" alt="" style="width:100px;height:100px;object-fit:contain"/></div>
       <h1 id="loginSchoolName">متابعة سير الاختبارات الإلكتروني</h1>
-      <p>برمجة الأستاذ عبدالله حمدي</p>
+      <p style="font-size:11px;color:var(--muted);margin-top:3px">برمجة الأستاذ عبدالله حمدي</p>
     </div>
     <div id="loginErr" class="login-err" style="display:none"></div>
     <div class="login-field">
@@ -1065,66 +1052,109 @@ label.lbl{font-size:12px;color:var(--mid);display:block;margin-bottom:5px;font-w
     <div class="login-field">
       <input class="inp" id="loginPass" placeholder="كلمة المرور" type="password" dir="ltr" autocomplete="current-password" style="margin-bottom:16px"/>
     </div>
-    <button class="btn btn-navy btn-full" onclick="doLogin()">دخول إلى النظام</button>
-    <div class="demo-section" style="padding:0;background:none;border:none">
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <button onclick="quickLogin('admin','admin123')"
-          style="display:flex;align-items:center;gap:12px;padding:13px 15px;background:linear-gradient(135deg,#0B1D3A,#1D3561);border:none;border-radius:12px;cursor:pointer;width:100%;font-family:inherit">
-          <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🔑</div>
-          <div style="flex:1;text-align:right">
-            <p style="color:#fff;font-weight:700;font-size:13px;margin:0">مدير النظام</p>
-            <p style="color:rgba(255,255,255,.5);font-size:11px;margin:0;font-family:monospace;direction:ltr">admin / admin123</p>
-          </div>
-          <span style="color:rgba(255,255,255,.35);font-size:18px">←</span>
-        </button>
-        <button onclick="quickLogin('ctrl','ctrl123')"
-          style="display:flex;align-items:center;gap:12px;padding:13px 15px;background:linear-gradient(135deg,#1E3A8A,#2563EB);border:none;border-radius:12px;cursor:pointer;width:100%;font-family:inherit">
-          <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📋</div>
-          <div style="flex:1;text-align:right">
-            <p style="color:#fff;font-weight:700;font-size:13px;margin:0">الكنترول</p>
-            <p style="color:rgba(255,255,255,.5);font-size:11px;margin:0;font-family:monospace;direction:ltr">ctrl / ctrl123</p>
-          </div>
-          <span style="color:rgba(255,255,255,.35);font-size:18px">←</span>
-        </button>
-        <button onclick="quickLogin('notify','1234')"
-          style="display:flex;align-items:center;gap:12px;padding:13px 15px;background:linear-gradient(135deg,#5B21B6,#7C3AED);border:none;border-radius:12px;cursor:pointer;width:100%;font-family:inherit">
-          <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📲</div>
-          <div style="flex:1;text-align:right">
-            <p style="color:#fff;font-weight:700;font-size:13px;margin:0">مسؤول التنبيهات</p>
-            <p style="color:rgba(255,255,255,.5);font-size:11px;margin:0;font-family:monospace;direction:ltr">notify / 1234</p>
-          </div>
-          <span style="color:rgba(255,255,255,.35);font-size:18px">←</span>
-        </button>
-        <button onclick="quickLogin('principal','prin123')"
-          style="display:flex;align-items:center;gap:12px;padding:13px 15px;background:linear-gradient(135deg,#065F46,#059669);border:none;border-radius:12px;cursor:pointer;width:100%;font-family:inherit">
-          <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🏫</div>
-          <div style="flex:1;text-align:right">
-            <p style="color:#fff;font-weight:700;font-size:13px;margin:0">مدير المدرسة</p>
-            <p style="color:rgba(255,255,255,.5);font-size:11px;margin:0;font-family:monospace;direction:ltr">principal / prin123</p>
-          </div>
-          <span style="color:rgba(255,255,255,.35);font-size:18px">←</span>
-        </button>
-      </div>
-      <div id="demoBtns" style="display:none"></div>
+    <button class="btn btn-navy btn-full" onclick="doLogin()">🔐 دخول إلى النظام</button>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px">
+      <button onclick="quickLogin('admin','admin123')"
+        style="display:flex;align-items:center;gap:12px;padding:13px 15px;background:linear-gradient(135deg,#0B1D3A,#1D3561);border:none;border-radius:12px;cursor:pointer;width:100%;font-family:inherit;transition:all .2s"
+        onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 24px rgba(0,0,0,.3)'"
+        onmouseout="this.style.transform='';this.style.boxShadow=''">
+        <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🔑</div>
+        <div style="flex:1;text-align:right"><p style="color:#fff;font-weight:700;font-size:13px;margin:0">مدير النظام</p><p style="color:rgba(255,255,255,.5);font-size:11px;margin:0;font-family:monospace;direction:ltr">admin / admin123</p></div>
+        <span style="color:rgba(255,255,255,.35);font-size:18px">←</span>
+      </button>
+      <button onclick="quickLogin('ctrl','ctrl123')"
+        style="display:flex;align-items:center;gap:12px;padding:13px 15px;background:linear-gradient(135deg,#1E3A8A,#2563EB);border:none;border-radius:12px;cursor:pointer;width:100%;font-family:inherit;transition:all .2s"
+        onmouseover="this.style.transform='translateY(-2px)'"
+        onmouseout="this.style.transform=''">
+        <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📋</div>
+        <div style="flex:1;text-align:right"><p style="color:#fff;font-weight:700;font-size:13px;margin:0">الكنترول</p><p style="color:rgba(255,255,255,.5);font-size:11px;margin:0;font-family:monospace;direction:ltr">ctrl / ctrl123</p></div>
+        <span style="color:rgba(255,255,255,.35);font-size:18px">←</span>
+      </button>
+      <button onclick="quickLogin('notify','1234')"
+        style="display:flex;align-items:center;gap:12px;padding:13px 15px;background:linear-gradient(135deg,#5B21B6,#7C3AED);border:none;border-radius:12px;cursor:pointer;width:100%;font-family:inherit;transition:all .2s"
+        onmouseover="this.style.transform='translateY(-2px)'"
+        onmouseout="this.style.transform=''">
+        <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📲</div>
+        <div style="flex:1;text-align:right"><p style="color:#fff;font-weight:700;font-size:13px;margin:0">مسؤول التنبيهات</p><p style="color:rgba(255,255,255,.5);font-size:11px;margin:0;font-family:monospace;direction:ltr">notify / 1234</p></div>
+        <span style="color:rgba(255,255,255,.35);font-size:18px">←</span>
+      </button>
+      <button onclick="quickLogin('principal','prin123')"
+        style="display:flex;align-items:center;gap:12px;padding:13px 15px;background:linear-gradient(135deg,#065F46,#059669);border:none;border-radius:12px;cursor:pointer;width:100%;font-family:inherit;transition:all .2s"
+        onmouseover="this.style.transform='translateY(-2px)'"
+        onmouseout="this.style.transform=''">
+        <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🏫</div>
+        <div style="flex:1;text-align:right"><p style="color:#fff;font-weight:700;font-size:13px;margin:0">مدير المدرسة</p><p style="color:rgba(255,255,255,.5);font-size:11px;margin:0;font-family:monospace;direction:ltr">principal / prin123</p></div>
+        <span style="color:rgba(255,255,255,.35);font-size:18px">←</span>
+      </button>
     </div>
+    <div id="demoBtns" style="display:none"></div>
   </div>
 </div>
 
+<!-- تطبيق رئيسي -->
 <div id="appShell">
+  <!-- Header المطوّر -->
   <header id="appHeader">
-    <div class="h-logo" style="background:none;box-shadow:none;padding:0;width:46px;height:46px"><img id="headerLogo" src="" alt="شعار" style="width:46px;height:46px;object-fit:contain"/></div>
-    <span class="h-title" id="hSchool"></span>
+    <div class="h-logo" style="background:none;box-shadow:none;padding:0;width:46px;height:46px;flex-shrink:0">
+      <img id="headerLogo" src="" alt="شعار" style="width:46px;height:46px;object-fit:contain"/>
+    </div>
+    <span class="h-title" id="hSchool" style="font-size:14px"></span>
+
+    <!-- البحث العالمي -->
+    <div style="flex:1;max-width:240px;display:flex;align-items:center">
+      <input id="globalSearchBar" placeholder="🔍 بحث... (Ctrl+K)"
+        oninput="doGlobalSearch(this.value)"
+        onkeydown="if(event.key==='Escape'){this.value='';const dd=document.getElementById('searchResultsDropdown');if(dd)dd.remove()}"
+        style="width:100%"/>
+    </div>
+
+    <!-- مؤشر الوقت الفعلي -->
+    <span id="realtimeClock" style="color:rgba(255,255,255,.5);font-size:11px;font-family:monospace;direction:ltr;white-space:nowrap"></span>
+
+    <!-- مؤشر المزامنة -->
+    <div class="h-sync-wrap">
+      <div id="syncDot" style="width:8px;height:8px;border-radius:50%;background:#22C55E;transition:all .3s;flex-shrink:0"></div>
+      <span id="syncTxt" style="color:rgba(255,255,255,.5);font-size:10px;white-space:nowrap">متصل</span>
+    </div>
+
+    <!-- زر الإشعارات -->
+    <div style="position:relative">
+      <button onclick="navigateTo('notif_center')" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:var(--r8);color:rgba(255,255,255,.85);cursor:pointer;font-size:16px;padding:5px 9px;transition:all .2s" title="الإشعارات">🔔</button>
+      <span id="notifBadge" style="display:none;position:absolute;top:-4px;left:-4px;background:#EF4444;color:#fff;font-size:9px;font-weight:900;width:18px;height:18px;border-radius:50%;align-items:center;justify-content:center;border:2px solid var(--navy)"></span>
+    </div>
+
+    <!-- زر شاشة العرض -->
+    <button onclick="toggleDisplayMode()" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:var(--r8);color:rgba(255,255,255,.85);cursor:pointer;font-size:12px;padding:5px 9px;transition:all .2s;white-space:nowrap" title="شاشة العرض المدرسية">📺</button>
+
+    <!-- زر الوضع الليلي -->
+    <button id="darkModeBtn" class="dark-toggle" onclick="toggleDarkMode()" title="الوضع الليلي (Ctrl+D)">🌙</button>
+
     <span class="h-role" id="hRole"></span>
-    <span class="h-user" id="hUser"></span>
+    <span class="h-user" id="hUser" style="display:none"></span>
     <button class="h-logout" onclick="doLogout()">خروج</button>
   </header>
+
+  <!-- شريط الحالة -->
+  <div id="syncBar" style="display:none;align-items:center;gap:8px;padding:4px 16px;background:linear-gradient(90deg,var(--bg),transparent);border-bottom:1px solid var(--border);font-size:11px;color:var(--muted)">
+    <span id="syncBarDot" style="width:7px;height:7px;border-radius:50%;background:#22C55E"></span>
+    <span>منصة إدارة الاختبارات المؤسسية</span>
+    <span style="margin-right:auto">
+      <span class="kbd-hint">Ctrl</span> + <span class="kbd-hint">K</span> بحث &nbsp;|&nbsp;
+      <span class="kbd-hint">Ctrl</span> + <span class="kbd-hint">D</span> وضع ليلي &nbsp;|&nbsp;
+      <span class="kbd-hint">Esc</span> إغلاق
+    </span>
+  </div>
+
   <nav id="appNav"></nav>
   <div id="appMain"><div class="page-wrap" id="pageContent"></div></div>
 </div>
 
 <div id="toast"></div>
 <div id="printArea" style="display:none"></div>
-<div id="loadingMsg" style="display:none;position:fixed;inset:0;background:rgba(11,29,58,.65);z-index:9998;display:none;align-items:center;justify-content:center;flex-direction:column"><div style="width:48px;height:48px;border:3px solid rgba(255,255,255,.2);border-top-color:#F0B429;border-radius:50%;animation:spin .8s linear infinite"></div><p style="color:#fff;font-family:inherit;margin-top:14px;font-size:14px">جارٍ تحميل البيانات...</p></div>
+<div id="loadingMsg" style="display:none;position:fixed;inset:0;background:rgba(11,29,58,.75);z-index:9998;display:none;align-items:center;justify-content:center;flex-direction:column;backdrop-filter:blur(4px)">
+  <div style="width:52px;height:52px;border:3px solid rgba(255,255,255,.2);border-top-color:#F0B429;border-radius:50%;animation:spin .8s linear infinite"></div>
+  <p style="color:#fff;font-family:inherit;margin-top:16px;font-size:14px;font-weight:600">جارٍ تحميل البيانات...</p>
+</div>
 
 <script>
 
@@ -1137,8 +1167,8 @@ const LOGO_SRC = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA+gAAAPoCAYAAABN
 // ═══════════════════════════════════════════════
 // SUPABASE — قاعدة البيانات المشتركة
 // ═══════════════════════════════════════════════
-const SUPABASE_URL = "https://ckkgbhukdndxyheuriaz.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNra2diaHVrZG5keHloZXVyaWF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTY1MDgsImV4cCI6MjA5NzA5MjUwOH0.AOCWIZIwLPiSUhgbz2l41a1QWPNRiep9xgpS3eFxmXQ";
+const SUPABASE_URL = "https://sdufrvefwvnojwaxodvd.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkdWZydmVmd3Zub2p3YXhvZHZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNTkxMDgsImV4cCI6MjA5NjkzNTEwOH0.lYqhMc5mvms-TevVxiwFqDlcihvbstzXjUF3D5LnEc8";
 
 async function sbGet(table, match) {
   const params = new URLSearchParams();
@@ -1257,46 +1287,46 @@ let state = {
     "تم الأرشفة والحفظ",
   ],
   teachers: [
-    {id:"TUOAUDX",name:"إبراهيم علي محمد القحطاني",role:"corrector",phone:"+966543260300",subject:"",note:""},
-    {id:"TTAMV7W",name:"سعد بن صياح بن ثامر الرشيدي",role:"corrector",phone:"+966555950293",subject:"",note:""},
-    {id:"T7PSY9W",name:"علي بن محمد بن علي آل فايع",role:"corrector",phone:"+966553637778",subject:"",note:""},
-    {id:"TUX4KKA",name:"عبدالعزيز بن عايض بن خثيل السويداني القحطاني",role:"corrector",phone:"+966552755338",subject:"",note:""},
-    {id:"T0BLGZ7",name:"عبدالله بن محمد علي الشهري",role:"corrector",phone:"+966582880369",subject:"",note:""},
-    {id:"TYVVGMC",name:"عبدالرحمن بن عبدالله بن علي الغامدي",role:"corrector",phone:"+966590808501",subject:"",note:""},
-    {id:"T28UUX0",name:"ناصر بن جمعان عيضه المالكي",role:"corrector",phone:"+966548968707",subject:"",note:""},
-    {id:"TAYHAHQ",name:"محمد احمد ديهان العميري",role:"corrector",phone:"+966569888388",subject:"",note:""},
-    {id:"TGI37XZ",name:"اسامة بن عبدالله بن جارالله الحارثي",role:"corrector",phone:"+966535330929",subject:"",note:""},
-    {id:"TVO2LSA",name:"ايمن صالح حسين الغامدي",role:"corrector",phone:"+966548404099",subject:"",note:""},
-    {id:"T3A3E57",name:"عبدالرحمن حمد بن عبدالعزيز الجابر",role:"corrector",phone:"+966567790606",subject:"",note:""},
-    {id:"T65MIG6",name:"محمد بن عبد العزيز بن محمد السدحان",role:"corrector",phone:"+966530022663",subject:"",note:""},
-    {id:"TFJ8SBJ",name:"فهد بن محمد بن حمد العودة",role:"corrector",phone:"+966553988008",subject:"",note:""},
-    {id:"T90U27E",name:"إبراهيم بن ثواب بن معيض الجامعي السلمي",role:"corrector",phone:"+966558589724",subject:"",note:""},
-    {id:"TLP3NJW",name:"عبدالملك بن عبدالله بن محمد الصقعبي",role:"corrector",phone:"+966533016681",subject:"",note:""},
-    {id:"T0ROM1E",name:"فهد بن ابراهيم بن علي الهزيم المحبوب",role:"corrector",phone:"+966568281881",subject:"",note:""},
-    {id:"TVKOOM3",name:"فارس سعيد حسين الغامدي",role:"corrector",phone:"+966500896633",subject:"",note:""},
-    {id:"TD0TCEO",name:"عبدالرحمن بن محمد بن علي العمري",role:"corrector",phone:"+966503456117",subject:"",note:""},
-    {id:"TTYFNNA",name:"فيصل بن محمد عبدالله الغفيلي",role:"corrector",phone:"+966505147427",subject:"",note:""},
-    {id:"TO9IBOP",name:"جمعان محمد عبدالرحمن الزهراني",role:"corrector",phone:"+966503892516",subject:"",note:""},
-    {id:"TWZZCWF",name:"عبدالله بن جهيم بن عبيد الفدعاني العنزي",role:"corrector",phone:"+966554623998",subject:"",note:""},
-    {id:"TN72DZ2",name:"بدر بن دخيل الله بن دغيم الفريدي الحربي",role:"corrector",phone:"+966563171339",subject:"",note:""},
-    {id:"T4C3SGP",name:"عبدالله بن محمد بن علي حمدي",role:"corrector",phone:"+966551121498",subject:"",note:""},
-    {id:"TVQ89Q9",name:"محمد علي صالح ال عقيل",role:"corrector",phone:"+966505863533",subject:"",note:""},
-    {id:"TPKBX3Q",name:"بندر بن أحمد بن غرم الله الطفيلي الزهراني",role:"corrector",phone:"+966547009714",subject:"",note:""},
-    {id:"TJBOTB0",name:"اسعيد بن علي محمد السهيمي",role:"corrector",phone:"+966503941980",subject:"",note:""},
-    {id:"T7ORFA6",name:"محمد جبران فرحان عياشي",role:"corrector",phone:"+966568409690",subject:"",note:""},
-    {id:"TET09JR",name:"محمد حسين عبدالله العلي",role:"corrector",phone:"+966500880936",subject:"",note:""},
-    {id:"T9S5WDO",name:"صقر بن محيسن بن شريده العبدلي العنزي",role:"corrector",phone:"+966506953994",subject:"",note:""},
-    {id:"TPF76LP",name:"عبدالله  بن سالم عيسى المسيليم",role:"corrector",phone:"+966539169994",subject:"",note:""},
-    {id:"TIGWQWR",name:"معيض بن جبران بن محمد آل قاسم القحطاني",role:"corrector",phone:"+966530360360",subject:"",note:""},
-    {id:"TPAS5BF",name:"فهد بن عبدالرحمن أحمد السقوفي",role:"corrector",phone:"+966548118884",subject:"",note:""},
-    {id:"T5IPOPC",name:"محمد بن خلف الله بن زايد الزايدي",role:"corrector",phone:"+966550210511",subject:"",note:""},
-    {id:"TW08BW3",name:"فهد مشعي بريكان الدوسري",role:"corrector",phone:"+966598090368",subject:"",note:""},
-    {id:"T3WOXNR",name:"خالد بن علي محمد القحطاني",role:"corrector",phone:"+966534199988",subject:"",note:""},
-    {id:"TDJYP55",name:"فيصل بن سلطان بن قطيم المطيري",role:"corrector",phone:"+966535768756",subject:"",note:""},
-    {id:"T0DL1MB",name:"نايف بن عبدالله بن محمد الحواس",role:"corrector",phone:"+966546088830",subject:"",note:""},
-    {id:"TGNTNK2",name:"أحمد يحيى محمد أبو ملحة",role:"corrector",phone:"+966503736832",subject:"",note:""},
-    {id:"TH2WJ5I",name:"خالد بن عبدالله بن ابراهيم الباز",role:"corrector",phone:"+966557575511",subject:"",note:""},
-    {id:"TBNS9IE",name:"حسين بن مانع بن حسين القحطاني",role:"corrector",phone:"+966567508504",subject:"",note:""}
+    {id:"TXJ0I7E",name:"إبراهيم علي محمد القحطاني",role:"corrector",phone:"+966543260300",subject:"",note:""},
+    {id:"TQUBIUV",name:"سعد بن صياح بن ثامر الرشيدي",role:"corrector",phone:"+966555950293",subject:"",note:""},
+    {id:"TLIPLBA",name:"علي بن محمد بن علي آل فايع",role:"corrector",phone:"+966553637778",subject:"",note:""},
+    {id:"T0DSKIL",name:"عبدالعزيز بن عايض بن خثيل السويداني القحطاني",role:"corrector",phone:"+966552755338",subject:"",note:""},
+    {id:"TSVHNAR",name:"عبدالله بن محمد علي الشهري",role:"corrector",phone:"+966582880369",subject:"",note:""},
+    {id:"TN3FSEB",name:"عبدالرحمن بن عبدالله بن علي الغامدي",role:"corrector",phone:"+966590808501",subject:"",note:""},
+    {id:"T6DP1YF",name:"ناصر بن جمعان عيضه المالكي",role:"corrector",phone:"+966548968707",subject:"",note:""},
+    {id:"TTF8GJ6",name:"محمد احمد ديهان العميري",role:"corrector",phone:"+966569888388",subject:"",note:""},
+    {id:"TDMIAW4",name:"اسامة بن عبدالله بن جارالله الحارثي",role:"corrector",phone:"+966535330929",subject:"",note:""},
+    {id:"TP45ZOI",name:"ايمن صالح حسين الغامدي",role:"corrector",phone:"+966548404099",subject:"",note:""},
+    {id:"TYJGTT3",name:"عبدالرحمن حمد بن عبدالعزيز الجابر",role:"corrector",phone:"+966567790606",subject:"",note:""},
+    {id:"TQMFIYV",name:"محمد بن عبد العزيز بن محمد السدحان",role:"corrector",phone:"+966530022663",subject:"",note:""},
+    {id:"TEKVY0G",name:"فهد بن محمد بن حمد العودة",role:"corrector",phone:"+966553988008",subject:"",note:""},
+    {id:"T9B92OE",name:"إبراهيم بن ثواب بن معيض الجامعي السلمي",role:"corrector",phone:"+966558589724",subject:"",note:""},
+    {id:"TYHA09H",name:"عبدالملك بن عبدالله بن محمد الصقعبي",role:"corrector",phone:"+966533016681",subject:"",note:""},
+    {id:"TLGNLR4",name:"فهد بن ابراهيم بن علي الهزيم المحبوب",role:"corrector",phone:"+966568281881",subject:"",note:""},
+    {id:"TDWI4BS",name:"فارس سعيد حسين الغامدي",role:"corrector",phone:"+966500896633",subject:"",note:""},
+    {id:"TRV5DT0",name:"عبدالرحمن بن محمد بن علي العمري",role:"corrector",phone:"+966503456117",subject:"",note:""},
+    {id:"T0QHIXX",name:"فيصل بن محمد عبدالله الغفيلي",role:"corrector",phone:"+966505147427",subject:"",note:""},
+    {id:"TXUZQUO",name:"جمعان محمد عبدالرحمن الزهراني",role:"corrector",phone:"+966503892516",subject:"",note:""},
+    {id:"TV6R7CR",name:"عبدالله بن جهيم بن عبيد الفدعاني العنزي",role:"corrector",phone:"+966554623998",subject:"",note:""},
+    {id:"TLBMO84",name:"بدر بن دخيل الله بن دغيم الفريدي الحربي",role:"corrector",phone:"+966563171339",subject:"",note:""},
+    {id:"T9UJQUQ",name:"عبدالله بن محمد بن علي حمدي",role:"corrector",phone:"+966551121498",subject:"",note:""},
+    {id:"TNX37D5",name:"محمد علي صالح ال عقيل",role:"corrector",phone:"+966505863533",subject:"",note:""},
+    {id:"TVY487W",name:"بندر بن أحمد بن غرم الله الطفيلي الزهراني",role:"corrector",phone:"+966547009714",subject:"",note:""},
+    {id:"TV3D536",name:"اسعيد بن علي محمد السهيمي",role:"corrector",phone:"+966503941980",subject:"",note:""},
+    {id:"TYWZBK8",name:"محمد جبران فرحان عياشي",role:"corrector",phone:"+966568409690",subject:"",note:""},
+    {id:"TJIENMU",name:"محمد حسين عبدالله العلي",role:"corrector",phone:"+966500880936",subject:"",note:""},
+    {id:"TKPH8JX",name:"صقر بن محيسن بن شريده العبدلي العنزي",role:"corrector",phone:"+966506953994",subject:"",note:""},
+    {id:"TCOBVSP",name:"عبدالله بن سالم عيسى المسيليم",role:"corrector",phone:"+966539169994",subject:"",note:""},
+    {id:"TU16FYU",name:"معيض بن جبران بن محمد آل قاسم القحطاني",role:"corrector",phone:"+966530360360",subject:"",note:""},
+    {id:"TVG01T7",name:"فهد بن عبدالرحمن أحمد السقوفي",role:"corrector",phone:"+966548118884",subject:"",note:""},
+    {id:"TLNE6H4",name:"محمد بن خلف الله بن زايد الزايدي",role:"corrector",phone:"+966550210511",subject:"",note:""},
+    {id:"TO1ENCM",name:"فهد مشعي بريكان الدوسري",role:"corrector",phone:"+966598090368",subject:"",note:""},
+    {id:"T7ESX70",name:"خالد بن علي محمد القحطاني",role:"corrector",phone:"+966534199988",subject:"",note:""},
+    {id:"T2XBPJN",name:"فيصل بن سلطان بن قطيم المطيري",role:"corrector",phone:"+966535768756",subject:"",note:""},
+    {id:"TVQZMLJ",name:"نايف بن عبدالله بن محمد الحواس",role:"corrector",phone:"+966546088830",subject:"",note:""},
+    {id:"TSOTC4P",name:"أحمد يحيى محمد أبو ملحة",role:"corrector",phone:"+966503736832",subject:"",note:""},
+    {id:"TNR21YQ",name:"خالد بن عبدالله بن ابراهيم الباز",role:"corrector",phone:"+966557575511",subject:"",note:""},
+    {id:"TZI8GC7",name:"حسين بن مانع بن حسين القحطاني",role:"corrector",phone:"+966567508504",subject:"",note:""}
   ],
   users: [
     { id:"U1", name:"مدير النظام",        username:"admin",     password:"admin123", role:"admin"      },
@@ -2143,7 +2173,7 @@ function renderScanResult() {
     <div class="log-entry">
       <div class="log-dot" style="background:${sc(e.stageIdx)}"></div>
       <div>
-        <span class="log-label">${e.stageLabel}</span>
+        <span class="log-label">${(state.stages[e.stageIdx])||e.stageLabel}</span>
         <span class="log-meta">${fmt(e.ts)} — ${e.user}</span>
         ${e.note?`<p class="log-note">"${e.note}"</p>`:""}
       </div>
@@ -2481,11 +2511,6 @@ function renderSGeneral(el) {
         location.reload();
       }">🗑️ إعادة تعيين كامل</button>
   </div>
-  </div>
-  <div class="card" style="border:2px solid var(--blue);background:var(--blueBg)">
-    <p class="card-title">☁️ المزامنة مع السحابة</p>
-    <p style="font-size:13px;color:var(--mid);margin-bottom:14px">إذا كانت بياناتك موجودة على جهاز قديم فقط، اضغط هذا الزر لرفعها للسحابة حتى تظهر على جميع الأجهزة.</p>
-    <button class="btn btn-full" style="background:linear-gradient(135deg,var(--blue),var(--blueM))" onclick="forceSyncAll()">☁️ رفع جميع البيانات للسحابة الآن</button>
   </div>`;
 }
 
@@ -2549,7 +2574,22 @@ function renderSStages(el) {
         const v=document.getElementById('newStage').value.trim();
         if(v){_editStages.push(v);renderSTabContent()}">إضافة</button>
     </div>
-    <button class="btn btn-green btn-full" onclick="state.stages=[..._editStages.filter(x=>x.trim())];saveState();toast('تم حفظ المراحل ✅')">💾 حفظ المراحل</button>
+    <button class="btn btn-green btn-full" onclick="
+  const newStages=[..._editStages.filter(x=>x.trim())];
+  state.bundles.forEach(b=>{
+    b.log.forEach(e=>{
+      if(e.stageIdx>=0 && e.stageIdx<newStages.length){
+        e.stageLabel=newStages[e.stageIdx];
+      }
+    });
+    if(b.stage>=0 && b.stage<newStages.length){
+      // update current stage label if needed (stored in log)
+    }
+  });
+  state.stages=newStages;
+  saveState();saveToCloud();
+  toast('تم حفظ المراحل وتحديثها في جميع السجلات ✅')
+">💾 حفظ المراحل</button>
   </div>`;
 }
 
@@ -2795,10 +2835,7 @@ function printSchedule() {
   </table>
   <br/>
   <button onclick="window.print()" style="padding:9px 20px;background:#0D1F3C;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-family:inherit">🖨️ طباعة</button>
-  
-<div id="shortcutHint" class="shortcut-hint"></div>
-
-</body></html>`);
+  </body></html>`);
   win.document.close();
 }
 
@@ -2898,7 +2935,7 @@ function generatePDF(subjectFilter) {
         <tbody>
           ${b.log.map((e,i)=>`<tr style="border-bottom:1px solid #e5e7eb">
             <td style="padding:5px 8px;color:#64748b">${i+1}</td>
-            <td style="padding:5px 8px;font-weight:700">${e.stageLabel}</td>
+            <td style="padding:5px 8px;font-weight:700">${(state.stages[e.stageIdx])||e.stageLabel}</td>
             <td style="padding:5px 8px;direction:ltr;text-align:right;color:#64748b">${new Date(e.ts).toLocaleString("ar-SA",{dateStyle:"short",timeStyle:"short"})}</td>
             <td style="padding:5px 8px">${e.user}</td>
             <td style="padding:5px 8px;color:#64748b;font-style:italic">${e.note||"—"}</td>
@@ -3006,9 +3043,6 @@ function generatePDF(subjectFilter) {
     <button onclick="window.close()" style="padding:10px 20px;background:#64748b;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-family:inherit">إغلاق</button>
   </div>
 </div>
-
-<div id="shortcutHint" class="shortcut-hint"></div>
-
 </body></html>`);
   win.document.close();
   toast("تم فتح نافذة التقرير — اختر طباعة أو حفظ PDF ✅");
@@ -3374,7 +3408,7 @@ function renderPrincipalDashboard(el) {
     <div style="display:flex;gap:10px;margin-bottom:9px;align-items:flex-start">
       <div style="width:8px;height:8px;border-radius:50%;background:${sc(e.stageIdx||0)};margin-top:4px;flex-shrink:0"></div>
       <div style="flex:1">
-        <span style="font-size:12px;font-weight:700;color:var(--text)">${e.stageLabel}</span>
+        <span style="font-size:12px;font-weight:700;color:var(--text)">${(state.stages[e.stageIdx])||e.stageLabel}</span>
         <span style="font-size:11px;color:var(--muted)"> · ${e.subject}</span>
         <br/><span style="font-size:10px;color:var(--muted)">${fmt(e.ts)} — ${e.user}</span>
       </div>
@@ -3709,7 +3743,7 @@ function renderPrinBundle(el) {
     <div style="display:flex;gap:11px;margin-bottom:${i<b.log.length-1?10:0}px;align-items:flex-start">
       <div style="width:9px;height:9px;border-radius:50%;background:${sc(e.stageIdx)};margin-top:4px;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.2)"></div>
       <div>
-        <span style="font-size:12px;font-weight:700;color:var(--text)">${e.stageLabel}</span>
+        <span style="font-size:12px;font-weight:700;color:var(--text)">${(state.stages[e.stageIdx])||e.stageLabel}</span>
         <span style="font-size:11px;color:var(--muted);margin-right:5px">${fmt(e.ts)} — ${e.user}</span>
         ${e.note?`<p style="font-size:11px;color:var(--mid);font-style:italic;margin-top:1px">"${e.note}"</p>`:""}
       </div>
@@ -3747,14 +3781,15 @@ function renderPrincipalReport(el) {
     if(b.stage===state.stages.length-1) subjectMap[b.subject].done++;
   });
 
-  // Teachers workload
+  // Teachers workload with roles
   const tMap={};
   state.bundles.forEach(b=>{
-    [b.corrector,b.corrector2,b.reviewer,b.reviewer2,b.auditor,b.auditor2].filter(Boolean).forEach(tid=>{
+    [[b.corrector,"مصحح"],[b.corrector2,"مصحح 2"],[b.reviewer,"مراجع"],[b.reviewer2,"مراجع 2"],[b.auditor,"مدقق"],[b.auditor2,"مدقق 2"]].filter(([id])=>id).forEach(([tid,role])=>{
       const t=state.teachers.find(x=>x.id===tid);
       if(!t) return;
-      if(!tMap[t.name]) tMap[t.name]={bundles:0,papers:0};
-      tMap[t.name].bundles++; tMap[t.name].papers+=b.count;
+      const key=t.name+"__"+role;
+      if(!tMap[key]) tMap[key]={name:t.name,role,bundles:0,papers:0};
+      tMap[key].bundles++; tMap[key].papers+=b.count;
     });
   });
 
@@ -3835,14 +3870,15 @@ function renderPrincipalReport(el) {
     }).join("")}
   </div>`:""}
 
-  <!-- Teachers workload -->
+  <!-- Teachers workload - detailed by role -->
   ${Object.keys(tMap).length>0?`
   <div class="card">
-    <p class="card-title"><span class="ct-icon" style="background:#DBEAFE">👨‍🏫</span>أعباء المعلمين</p>
+    <p class="card-title"><span class="ct-icon" style="background:#DBEAFE">👨‍🏫</span>أعباء المعلمين حسب الدور</p>
     <div style="overflow-x:auto">
     <table class="data-table">
       <thead><tr>
         <th>المعلم</th>
+        <th>الدور</th>
         <th style="text-align:center">المظاريف المعيّنة</th>
         <th style="text-align:center">إجمالي الأوراق</th>
       </tr></thead>
@@ -3850,7 +3886,14 @@ function renderPrincipalReport(el) {
         ${Object.entries(tMap).sort((a,b)=>b[1].papers-a[1].papers).map(([name,d])=>`
         <tr>
           <td style="font-weight:700;color:var(--navy)">${name}</td>
-          <td style="text-align:center">${d.bundles}</td>
+          <td><span style="padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;background:${
+            d.role==='مصحح'||d.role==='مصحح 2'?'var(--purBg)':
+            d.role==='مراجع'||d.role==='مراجع 2'?'var(--greenBg)':'var(--amberBg)'
+          };color:${
+            d.role==='مصحح'||d.role==='مصحح 2'?'var(--purple)':
+            d.role==='مراجع'||d.role==='مراجع 2'?'var(--greenM)':'var(--amber)'
+          }">${d.role}</span></td>
+          <td style="text-align:center;font-weight:700">${d.bundles}</td>
           <td style="text-align:center;color:var(--mid)">${d.papers}</td>
         </tr>`).join("")}
       </tbody>
@@ -3868,60 +3911,174 @@ function generatePrincipalPDF() {
   const pct        = total>0?Math.round((done/total)*100):0;
   const printDate  = new Date().toLocaleDateString("ar-SA",{dateStyle:"full"});
 
-  const subjectRows={};
+  // تجميع المواد مع تفاصيل المصححين والمراجعين والمدققين
+  const subjectData = {};
   state.bundles.forEach(b=>{
-    if(!subjectRows[b.subject]) subjectRows[b.subject]={total:0,done:0,inProg:0,papers:0};
-    subjectRows[b.subject].total++; subjectRows[b.subject].papers+=b.count;
-    if(b.stage===state.stages.length-1) subjectRows[b.subject].done++;
-    else if(b.stage>=0) subjectRows[b.subject].inProg++;
+    const subj = b.subject || "غير محدد";
+    const grade = b.grade || "غير محدد";
+    if(!subjectData[subj]) subjectData[subj] = {};
+    if(!subjectData[subj][grade]) subjectData[subj][grade] = [];
+    const corrT  = state.teachers.find(t=>t.id===b.corrector);
+    const corrT2 = state.teachers.find(t=>t.id===b.corrector2);
+    const revT   = state.teachers.find(t=>t.id===b.reviewer);
+    const revT2  = state.teachers.find(t=>t.id===b.reviewer2);
+    const audT   = state.teachers.find(t=>t.id===b.auditor);
+    const audT2  = state.teachers.find(t=>t.id===b.auditor2);
+    const sName  = b.stage<0?"جديد":(state.stages[b.stage]||"—");
+    const lastLog = b.log[b.log.length-1];
+    subjectData[subj][grade].push({
+      barcode:b.barcode, count:b.count, stage:b.stage, stageName:sName,
+      corrT:corrT?corrT.name:"—", corrT2:corrT2?corrT2.name:"",
+      revT:revT?revT.name:"—",   revT2:revT2?revT2.name:"",
+      audT:audT?audT.name:"—",   audT2:audT2?audT2.name:"",
+      lastUpdate:lastLog?new Date(lastLog.ts).toLocaleDateString("ar-SA"):"—",
+      examDay:b.examDay||"", examDate:b.examDate||"", examHall:b.examHall||"—",
+      isDone: b.stage===state.stages.length-1
+    });
   });
 
-  const bundleRows = state.bundles.map((b,i)=>{
-    const corrT = state.teachers.find(t=>t.id===b.corrector);
-    const sName = b.stage<0?"جديد":state.stages[b.stage]||"—";
-    const lastLog = b.log[b.log.length-1];
-    return `<tr style="background:${i%2===0?"#fff":"#f8fafc"}">
-      <td style="font-family:monospace;font-size:11px">${b.barcode}</td>
-      <td style="font-weight:700">${b.subject}</td>
-      <td>${b.grade||"—"}</td>
-      <td style="text-align:center">${b.count}</td>
-      <td>${corrT?corrT.name:"—"}</td>
-      <td style="font-weight:700;color:${b.stage===state.stages.length-1?"#059669":"#0D1F3C"}">${sName}</td>
-      <td style="font-size:10px;color:#64748b">${lastLog?new Date(lastLog.ts).toLocaleDateString("ar-SA"):"—"}</td>
-    </tr>`;
+  // بناء قسم كل مادة
+  const subjectSections = Object.entries(subjectData).map(([subj, gradeData])=>{
+    const allBundles = Object.values(gradeData).flat();
+    const subjDone   = allBundles.filter(b=>b.isDone).length;
+    const subjTotal  = allBundles.length;
+    const subjPapers = allBundles.reduce((a,b)=>a+b.count,0);
+    const subjPct    = subjTotal>0?Math.round((subjDone/subjTotal)*100):0;
+    const pColor     = subjPct>=80?"#059669":subjPct>=50?"#D97706":"#2563EB";
+
+    // بناء قسم كل مرحلة دراسية داخل المادة
+    const gradeSections = Object.entries(gradeData).sort((a,b)=>a[0].localeCompare(b[0],'ar')).map(([grade, bundles])=>{
+      const gDone   = bundles.filter(b=>b.isDone).length;
+      const gTotal  = bundles.length;
+      const gPapers = bundles.reduce((a,b)=>a+b.count,0);
+      const gPct    = gTotal>0?Math.round((gDone/gTotal)*100):0;
+      const gColor  = gPct>=80?"#059669":gPct>=50?"#D97706":"#2563EB";
+
+      const bundleRows = bundles.map((b,i)=>`
+        <tr style="background:${i%2===0?"#fff":"#f8fafc"}">
+          <td style="font-family:monospace;font-size:11px;white-space:nowrap">${b.barcode}</td>
+          <td style="text-align:center;font-weight:700">${b.count}</td>
+          <td style="font-size:11px">${b.examDay} ${b.examDate}</td>
+          <td style="font-size:11px">${b.examHall}</td>
+          <td style="font-size:11px;font-weight:700;color:#0D1F3C">${b.corrT}${b.corrT2?" / "+b.corrT2:""}</td>
+          <td style="font-size:11px;color:#374151">${b.revT}${b.revT2?" / "+b.revT2:""}</td>
+          <td style="font-size:11px;color:#374151">${b.audT}${b.audT2?" / "+b.audT2:""}</td>
+          <td style="font-weight:700;color:${b.isDone?"#059669":"#0D1F3C"};font-size:11px;white-space:nowrap">${b.stageName}</td>
+          <td style="font-size:10px;color:#64748b">${b.lastUpdate}</td>
+        </tr>`).join("");
+
+      return `
+      <div style="margin-bottom:12px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+        <div style="background:#f1f5f9;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e2e8f0">
+          <span style="font-weight:800;color:#0D1F3C;font-size:13px">🎓 ${grade}</span>
+          <div style="display:flex;gap:10px;align-items:center;font-size:11px;color:#64748b">
+            <span>📦 ${gTotal} مظروف</span>
+            <span>📄 ${gPapers} ورقة</span>
+            <span style="background:${gColor}20;color:${gColor};padding:2px 8px;border-radius:99px;font-weight:700">${gPct}%</span>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead>
+            <tr style="background:#e8edf4">
+              <th style="padding:7px 8px;text-align:right;font-size:11px">الباركود</th>
+              <th style="padding:7px 8px;text-align:center;font-size:11px">الأوراق</th>
+              <th style="padding:7px 8px;text-align:right;font-size:11px">تاريخ الاختبار</th>
+              <th style="padding:7px 8px;text-align:right;font-size:11px">القاعة</th>
+              <th style="padding:7px 8px;text-align:right;font-size:11px;color:#6D28D9">✏️ المصحح</th>
+              <th style="padding:7px 8px;text-align:right;font-size:11px;color:#065F46">🔍 المراجع</th>
+              <th style="padding:7px 8px;text-align:right;font-size:11px;color:#92400E">🔏 المدقق</th>
+              <th style="padding:7px 8px;text-align:right;font-size:11px">المرحلة الحالية</th>
+              <th style="padding:7px 8px;text-align:right;font-size:11px">آخر تحديث</th>
+            </tr>
+          </thead>
+          <tbody>${bundleRows}</tbody>
+        </table>
+        </div>
+      </div>`;
+    }).join("");
+
+    return `
+    <div style="margin-bottom:24px;page-break-inside:avoid">
+      <!-- Subject header -->
+      <div style="background:#0D1F3C;color:#fff;padding:11px 16px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-weight:800;font-size:15px">📚 ${subj}</span>
+        <div style="display:flex;gap:12px;align-items:center;font-size:12px">
+          <span>📦 ${subjTotal} مظروف</span>
+          <span>📄 ${subjPapers} ورقة</span>
+          <span style="background:${pColor};padding:3px 10px;border-radius:99px;font-weight:700">${subjPct}% مكتمل (${subjDone}/${subjTotal})</span>
+        </div>
+      </div>
+      <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;padding:12px">
+        ${gradeSections}
+      </div>
+    </div>`;
   }).join("");
 
-  const win=window.open("","_blank","width=1050,height=800");
+  // ملخص المواد مع المرحلة الدراسية
+  const summaryRows = Object.entries(subjectData).map(([subj, gradeData])=>{
+    const grades = Object.keys(gradeData).sort((a,b)=>a.localeCompare(b,'ar'));
+    return grades.map(grade=>{
+      const bundles = gradeData[grade];
+      const d = bundles.filter(b=>b.isDone).length;
+      const t = bundles.length;
+      const p = bundles.reduce((a,b)=>a+b.count,0);
+      const pct2 = t>0?Math.round((d/t)*100):0;
+      const c = pct2>=80?"#059669":pct2>=50?"#D97706":"#2563EB";
+      // collect unique teachers per role
+      const correctors = [...new Set(bundles.map(b=>b.corrT).filter(x=>x&&x!=="—"))];
+      const reviewers  = [...new Set(bundles.map(b=>b.revT).filter(x=>x&&x!=="—"))];
+      const auditors   = [...new Set(bundles.map(b=>b.audT).filter(x=>x&&x!=="—"))];
+      return `<tr>
+        <td style="font-weight:700;color:#0D1F3C">${subj}</td>
+        <td>${grade}</td>
+        <td style="text-align:center">${t}</td>
+        <td style="text-align:center">${p}</td>
+        <td style="text-align:center;color:#6D28D9;font-size:11px">${correctors.join("، ")||"—"}</td>
+        <td style="text-align:center;color:#065F46;font-size:11px">${reviewers.join("، ")||"—"}</td>
+        <td style="text-align:center;color:#92400E;font-size:11px">${auditors.join("، ")||"—"}</td>
+        <td><div style="background:#e5e7eb;border-radius:4px;height:6px"><div style="height:100%;width:${pct2}%;background:${c};border-radius:4px"></div></div><span style="font-size:10px;color:${c};font-weight:700">${pct2}%</span></td>
+      </tr>`;
+    }).join("");
+  }).join("");
+
+  const win=window.open("","_blank","width=1100,height=900");
   win.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/>
   <title>تقرير مدير المدرسة</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800;900&display=swap');
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Tajawal',Arial,sans-serif;direction:rtl;color:#0D1F3C;font-size:13px;line-height:1.5}
-    .page{padding:28px 32px}
-    .header{border-bottom:3px solid #0D1F3C;padding-bottom:14px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-start}
+    .page{padding:24px 28px}
+    .header{border-bottom:3px solid #0D1F3C;padding-bottom:14px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
     .header h1{font-size:20px;font-weight:900}
     .header .sub{font-size:12px;color:#64748b;margin-top:3px}
-    .kpi-row{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap}
-    .kpi{flex:1;min-width:90px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;text-align:center}
-    .kpi .val{font-size:24px;font-weight:900}
+    .kpi-row{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap}
+    .kpi{flex:1;min-width:80px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;text-align:center}
+    .kpi .val{font-size:22px;font-weight:900}
     .kpi .lbl{font-size:10px;color:#64748b;margin-top:2px}
-    h3{font-size:14px;font-weight:800;margin:16px 0 8px;padding-bottom:5px;border-bottom:1px solid #e5e7eb}
-    table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px}
+    h3{font-size:14px;font-weight:800;margin:18px 0 10px;padding-bottom:6px;border-bottom:2px solid #e5e7eb;display:flex;align-items:center;gap:6px}
+    table{width:100%;border-collapse:collapse;font-size:12px}
     th{background:#0D1F3C;color:#fff;padding:8px 10px;text-align:right;font-weight:700}
     td{padding:7px 10px;border-bottom:1px solid #e5e7eb}
-    .prog{background:#e5e7eb;border-radius:4px;height:6px;margin-top:3px}
-    .prog-fill{height:100%;border-radius:4px}
     .footer{margin-top:20px;padding-top:12px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;font-size:10px;color:#94a3b8}
-    .no-print{margin-top:16px;display:flex;gap:8px}
-    @media print{.no-print{display:none}body{font-size:11px}.page{padding:16px 20px}}
+    .no-print{margin-top:16px;display:flex;gap:8px;justify-content:center}
+    @media print{.no-print{display:none}body{font-size:11px}.page{padding:14px 18px}h3{margin:12px 0 8px}}
   </style></head><body>
   <div class="page">
     <div class="header">
-      <img src="${LOGO_SRC}" alt="شعار" style="width:110px;height:110px;object-fit:contain;flex-shrink:0"/>
-      <div style="flex:1"><h1>${state.schoolName}</h1><p class="sub">تقرير مدير المدرسة — ${printDate}</p></div>
-      <div style="background:#0D1F3C;color:#fff;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700">${total} مظروف</div>
+      <img src="${LOGO_SRC}" alt="شعار" style="width:90px;height:90px;object-fit:contain;flex-shrink:0"/>
+      <div style="flex:1">
+        <h1>${state.schoolName}</h1>
+        <p class="sub">تقرير مدير المدرسة — ${printDate}</p>
+        <p class="sub">إعداد: ${currentUser.name}</p>
+      </div>
+      <div style="background:#0D1F3C;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;text-align:center">
+        ${total} مظروف<br/><span style="font-size:10px;font-weight:400">${pct}% مكتمل</span>
+      </div>
     </div>
+
+    <!-- KPIs -->
     <div class="kpi-row">
       <div class="kpi"><div class="val">${total}</div><div class="lbl">إجمالي المظاريف</div></div>
       <div class="kpi"><div class="val">${totalPapers}</div><div class="lbl">إجمالي الأوراق</div></div>
@@ -3930,36 +4087,41 @@ function generatePrincipalPDF() {
       <div class="kpi"><div class="val" style="color:#64748b">${newB}</div><div class="lbl">جديدة</div></div>
       <div class="kpi"><div class="val" style="color:${pct>=80?"#059669":pct>=50?"#D97706":"#2563EB"}">${pct}%</div><div class="lbl">نسبة الإنجاز</div></div>
     </div>
-    <h3>📚 ملخص المواد</h3>
+
+    <!-- ملخص شامل -->
+    <h3>📋 ملخص المواد والمراحل الدراسية</h3>
+    <div style="overflow-x:auto;margin-bottom:20px">
     <table>
-      <thead><tr><th>المادة</th><th>المظاريف</th><th>الأوراق</th><th>مكتمل</th><th>جارٍ</th><th>نسبة الإنجاز</th></tr></thead>
-      <tbody>
-      ${Object.entries(subjectRows).map(([s,d])=>{
-        const p=d.total>0?Math.round((d.done/d.total)*100):0;
-        return `<tr><td style="font-weight:700">${s}</td><td>${d.total}</td><td>${d.papers}</td>
-        <td style="color:#059669;font-weight:700">${d.done}</td><td style="color:#D97706">${d.inProg}</td>
-        <td><div class="prog"><div class="prog-fill" style="width:${p}%;background:${p>=80?"#059669":p>=50?"#F59E0B":"#3B82F6"}"></div></div>${p}%</td></tr>`;
-      }).join("")}
-      </tbody>
+      <thead>
+        <tr>
+          <th>المادة</th>
+          <th>الصف</th>
+          <th style="text-align:center">المظاريف</th>
+          <th style="text-align:center">الأوراق</th>
+          <th style="text-align:center;color:#C4B5FD">✏️ المصححون</th>
+          <th style="text-align:center;color:#6EE7B7">🔍 المراجعون</th>
+          <th style="text-align:center;color:#FDE68A">🔏 المدققون</th>
+          <th>نسبة الإنجاز</th>
+        </tr>
+      </thead>
+      <tbody>${summaryRows}</tbody>
     </table>
-    <h3>📦 تفاصيل جميع المظاريف</h3>
-    <table>
-      <thead><tr><th>الباركود</th><th>المادة</th><th>الصف</th><th>الأوراق</th><th>المصحح</th><th>المرحلة الحالية</th><th>آخر تحديث</th></tr></thead>
-      <tbody>${bundleRows}</tbody>
-    </table>
+    </div>
+
+    <!-- تفاصيل كل مادة -->
+    <h3>📚 تفاصيل كل مادة — المصححون والمراجعون والمدققون</h3>
+    ${subjectSections}
+
     <div class="footer">
       <span>${state.schoolName} — نظام تتبع مظاريف الاختبارات</span>
-      <span>طُبع بواسطة مدير المدرسة — ${printDate}</span>
+      <span>طُبع بواسطة: ${currentUser.name} — ${printDate}</span>
     </div>
     <div class="no-print">
-      <button onclick="window.print()" style="padding:9px 22px;background:#0D1F3C;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;font-weight:700">🖨️ طباعة / PDF</button>
+      <button onclick="window.print()" style="padding:9px 24px;background:#0D1F3C;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;font-weight:700">🖨️ طباعة / حفظ PDF</button>
       <button onclick="window.close()" style="padding:9px 16px;background:#64748b;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit">إغلاق</button>
     </div>
   </div>
-  
-<div id="shortcutHint" class="shortcut-hint"></div>
-
-</body></html>`);
+  </body></html>`);
   win.document.close();
   toast("تم فتح تقرير مدير المدرسة ✅");
 }
@@ -4013,7 +4175,710 @@ document.addEventListener("DOMContentLoaded", function() {
 
 </script>
 
-<div id="shortcutHint" class="shortcut-hint"></div>
 
+// ═══════════════════════════════════════════════════════════════════
+// التطوير المؤسسي — وظائف جديدة
+// ═══════════════════════════════════════════════════════════════════
+
+// ── نظام التدقيق Audit Trail ─────────────────────────────────────
+const AUDIT_KEY = "examAuditLog_v1";
+let auditLog = [];
+
+function loadAuditLog() {
+  try {
+    const raw = localStorage.getItem(AUDIT_KEY);
+    if(raw) auditLog = JSON.parse(raw);
+  } catch(e) { auditLog = []; }
+}
+
+function saveAuditLog() {
+  try {
+    localStorage.setItem(AUDIT_KEY, JSON.stringify(auditLog.slice(0,2000)));
+  } catch(e) {}
+}
+
+function addAudit(action, details, category="general") {
+  const entry = {
+    id: uid(),
+    ts: nowISO(),
+    user: currentUser ? currentUser.name : "—",
+    role: currentUser ? currentUser.role : "—",
+    action,
+    details,
+    category,
+    device: navigator.userAgent.substring(0,80)
+  };
+  auditLog.unshift(entry);
+  saveAuditLog();
+}
+
+// ── الوضع الليلي ─────────────────────────────────────────────────
+let isDarkMode = false;
+
+function toggleDarkMode() {
+  isDarkMode = !isDarkMode;
+  document.body.classList.toggle("dark-mode", isDarkMode);
+  const btn = document.getElementById("darkModeBtn");
+  if(btn) btn.textContent = isDarkMode ? "☀️" : "🌙";
+  try { localStorage.setItem("darkMode", isDarkMode ? "1" : "0"); } catch(e){}
+}
+
+function loadDarkMode() {
+  try {
+    const saved = localStorage.getItem("darkMode");
+    if(saved === "1") { isDarkMode = true; document.body.classList.add("dark-mode"); }
+  } catch(e) {}
+}
+
+// ── نظام القصور الإشعاري الداخلي ────────────────────────────────
+let internalNotifs = [];
+
+function addInternalNotif(title, body, type="info") {
+  const n = { id:uid(), ts:nowISO(), title, body, type, read:false };
+  internalNotifs.unshift(n);
+  updateNotifBadge();
+  try { localStorage.setItem("internalNotifs", JSON.stringify(internalNotifs.slice(0,100))); } catch(e){}
+}
+
+function loadInternalNotifs() {
+  try {
+    const raw = localStorage.getItem("internalNotifs");
+    if(raw) internalNotifs = JSON.parse(raw);
+  } catch(e) { internalNotifs = []; }
+}
+
+function updateNotifBadge() {
+  const unread = internalNotifs.filter(n=>!n.read).length;
+  const badge = document.getElementById("notifBadge");
+  if(badge) {
+    badge.textContent = unread > 0 ? unread : "";
+    badge.style.display = unread > 0 ? "flex" : "none";
+  }
+}
+
+// ── البحث العالمي ─────────────────────────────────────────────────
+function doGlobalSearch(q) {
+  if(!q || q.length < 2) return;
+  q = q.toLowerCase();
+  const results = [];
+
+  // بحث في المظاريف
+  state.bundles.forEach(b => {
+    if(b.barcode.toLowerCase().includes(q) ||
+       b.subject.toLowerCase().includes(q) ||
+       (b.grade && b.grade.toLowerCase().includes(q))) {
+      results.push({ type:"bundle", label:`📦 ${b.barcode} — ${b.subject}`, id:b.id });
+    }
+  });
+
+  // بحث في المعلمين
+  state.teachers.forEach(t => {
+    if(t.name.toLowerCase().includes(q) || t.phone.includes(q)) {
+      results.push({ type:"teacher", label:`👨‍🏫 ${t.name}`, id:t.id });
+    }
+  });
+
+  showSearchResults(results, q);
+}
+
+function showSearchResults(results, q) {
+  let existing = document.getElementById("searchResultsDropdown");
+  if(existing) existing.remove();
+
+  if(results.length === 0) return;
+
+  const dd = document.createElement("div");
+  dd.id = "searchResultsDropdown";
+  dd.style.cssText = `position:fixed;top:58px;left:50%;transform:translateX(-50%);
+    width:340px;background:#fff;border-radius:12px;
+    box-shadow:0 16px 48px rgba(0,0,0,.25);z-index:9000;
+    overflow:hidden;max-height:360px;overflow-y:auto;`;
+
+  dd.innerHTML = `<div style="padding:10px 14px;background:var(--bg);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--muted)">
+    نتائج البحث عن "${q}" — ${results.length} نتيجة</div>
+    ${results.slice(0,10).map(r=>`
+    <button onclick="handleSearchResult('${r.type}','${r.id}')"
+      style="display:flex;align-items:center;gap:10px;width:100%;padding:11px 14px;
+      background:none;border:none;border-bottom:1px solid var(--border);cursor:pointer;
+      font-family:inherit;font-size:13px;text-align:right;transition:background .15s"
+      onmouseover="this.style.background='var(--bg)'"
+      onmouseout="this.style.background='none'">
+      <span style="font-size:16px">${r.type==='bundle'?'📦':'👨‍🏫'}</span>
+      <span style="font-weight:600;color:var(--navy)">${r.label}</span>
+    </button>`).join("")}`;
+
+  document.body.appendChild(dd);
+  setTimeout(() => {
+    document.addEventListener("click", function closeDD(e) {
+      if(!dd.contains(e.target)) { dd.remove(); document.removeEventListener("click", closeDD); }
+    });
+  }, 100);
+}
+
+function handleSearchResult(type, id) {
+  const dd = document.getElementById("searchResultsDropdown");
+  if(dd) dd.remove();
+  if(type === "bundle") {
+    const b = state.bundles.find(x=>x.id===id);
+    if(b) {
+      _scanHit = b; _confirmStg = null;
+      navigateTo("ctrl_scan");
+      setTimeout(()=>{ const inp=document.getElementById("scanInput"); if(inp) inp.value=b.barcode; renderScanResult(); }, 80);
+    }
+  }
+}
+
+// ── اختصارات لوحة المفاتيح ────────────────────────────────────────
+function initKeyboardShortcuts() {
+  document.addEventListener("keydown", function(e) {
+    if(!currentUser) return;
+
+    // Ctrl/Cmd + K = بحث عالمي
+    if((e.ctrlKey || e.metaKey) && e.key === "k") {
+      e.preventDefault();
+      const sb = document.getElementById("globalSearchBar");
+      if(sb) { sb.focus(); sb.select(); }
+    }
+
+    // Ctrl/Cmd + D = الوضع الليلي
+    if((e.ctrlKey || e.metaKey) && e.key === "d") {
+      e.preventDefault();
+      toggleDarkMode();
+    }
+
+    // Escape = إغلاق أي نافذة
+    if(e.key === "Escape") {
+      const overlay = document.querySelector(".overlay, .overlay-v2");
+      if(overlay) overlay.remove();
+      const dd = document.getElementById("searchResultsDropdown");
+      if(dd) dd.remove();
+    }
+  });
+}
+
+// ── لوحة التحليل الذكي ───────────────────────────────────────────
+function renderAIAnalysis(el) {
+  const total = state.bundles.length;
+  if(total === 0) {
+    el.innerHTML = `<div class="card"><div class="empty"><span class="empty-icon">🤖</span>لا توجد بيانات للتحليل بعد</div></div>`;
+    return;
+  }
+
+  const done = state.bundles.filter(b=>b.stage===state.stages.length-1).length;
+  const inProg = state.bundles.filter(b=>b.stage>=0&&b.stage<state.stages.length-1).length;
+  const newB = state.bundles.filter(b=>b.stage<0).length;
+  const pct = Math.round((done/total)*100);
+
+  // تحليل المواد
+  const subjData = {};
+  state.bundles.forEach(b=>{
+    const s = b.subject||"غير محدد";
+    if(!subjData[s]) subjData[s] = { total:0, done:0, papers:0, stages:{} };
+    subjData[s].total++;
+    subjData[s].papers += b.count;
+    if(b.stage === state.stages.length-1) subjData[s].done++;
+    if(b.stage>=0) {
+      const sn = state.stages[b.stage]||"—";
+      subjData[s].stages[sn] = (subjData[s].stages[sn]||0)+1;
+    }
+  });
+
+  // اكتشاف المواد الحرجة
+  const criticalSubjs = Object.entries(subjData)
+    .filter(([s,d]) => d.total>0 && (d.done/d.total)*100 < 30)
+    .map(([s,d]) => s);
+
+  // اكتشاف التأخير
+  const stuckBundles = state.bundles.filter(b => {
+    if(b.log.length === 0) return false;
+    const lastEntry = b.log[b.log.length-1];
+    const hrs = (Date.now() - new Date(lastEntry.ts).getTime()) / 3600000;
+    return hrs > 24 && b.stage < state.stages.length-1;
+  });
+
+  // توصيات ذكية
+  const suggestions = [];
+  if(criticalSubjs.length > 0)
+    suggestions.push(`⚠️ مواد بحاجة لمتابعة عاجلة: ${criticalSubjs.join("، ")}`);
+  if(stuckBundles.length > 0)
+    suggestions.push(`🕐 ${stuckBundles.length} مظروف لم يتحرك خلال أكثر من 24 ساعة`);
+  if(pct >= 80)
+    suggestions.push(`✅ أداء ممتاز! تم إنجاز ${pct}% من المظاريف`);
+  else if(pct >= 50)
+    suggestions.push(`📈 الإنجاز في المستوى المتوسط (${pct}%)، استمر في المتابعة`);
+  else
+    suggestions.push(`🚀 الإنجاز أقل من 50% (${pct}%)، يُنصح بمتابعة مكثفة`);
+
+  if(newB > 0)
+    suggestions.push(`📦 ${newB} مظروف لم يبدأ بعد — هل تريد إرسال تنبيه للمعلمين؟`);
+
+  el.innerHTML = `
+  <div class="page-header">
+    <div>
+      <div class="ph-title">🤖 مركز الذكاء الاصطناعي</div>
+      <div class="ph-sub">تحليل ذكي وتوصيات لتحسين الأداء</div>
+    </div>
+  </div>
+
+  <!-- AI Suggestions -->
+  <div class="ai-card">
+    <div class="ac-title">🧠 التوصيات الذكية</div>
+    ${suggestions.map(s=>`<div class="ai-suggestion">💡 ${s}</div>`).join("")}
+  </div>
+
+  <!-- إحصائيات سريعة -->
+  <div class="kpi-grid-4" style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px">
+    <div class="kpi-card-v2" style="--accent:#3B82F6">
+      <div class="kv-icon">📦</div>
+      <div class="kv-val" style="color:#3B82F6">${total}</div>
+      <div class="kv-lbl">إجمالي المظاريف</div>
+    </div>
+    <div class="kpi-card-v2" style="--accent:#10B981">
+      <div class="kv-icon">✅</div>
+      <div class="kv-val" style="color:#10B981">${pct}%</div>
+      <div class="kv-lbl">نسبة الإنجاز</div>
+    </div>
+    <div class="kpi-card-v2" style="--accent:#F59E0B">
+      <div class="kv-icon">⏳</div>
+      <div class="kv-val" style="color:#F59E0B">${inProg}</div>
+      <div class="kv-lbl">جارية</div>
+    </div>
+    <div class="kpi-card-v2" style="--accent:#EF4444">
+      <div class="kv-icon">🚨</div>
+      <div class="kv-val" style="color:#EF4444">${stuckBundles.length}</div>
+      <div class="kv-lbl">مظاريف متأخرة</div>
+    </div>
+  </div>
+
+  <!-- مقارنة المواد -->
+  <div class="card">
+    <p class="card-title"><span class="ct-icon" style="background:#EDE9FE">📊</span>مقارنة المواد</p>
+    ${Object.entries(subjData).sort((a,b)=>(b[1].done/b[1].total)-(a[1].done/a[1].total)).map(([subj,d])=>{
+      const p = Math.round((d.done/d.total)*100);
+      const c = p>=80?"#10B981":p>=50?"#F59E0B":"#EF4444";
+      return `<div class="compare-bar-wrap">
+        <span class="cbar-label">${subj}</span>
+        <div class="cbar-track"><div class="cbar-fill" style="width:${p}%;background:${c}"></div></div>
+        <span class="cbar-val" style="color:${c}">${p}%</span>
+      </div>`;
+    }).join("")}
+  </div>
+
+  <!-- توزيع المراحل -->
+  <div class="card">
+    <p class="card-title"><span class="ct-icon" style="background:#DBEAFE">📈</span>توزيع المظاريف على المراحل</p>
+    ${state.stages.map((s,i)=>{
+      const cnt = state.bundles.filter(b=>b.stage===i).length;
+      const p = total>0?Math.round((cnt/total)*100):0;
+      const c = sc(i);
+      return `<div class="compare-bar-wrap">
+        <span class="cbar-label" style="font-size:10px">${i+1}. ${s.length>15?s.substring(0,15)+"…":s}</span>
+        <div class="cbar-track"><div class="cbar-fill" style="width:${p}%;background:${c}"></div></div>
+        <span class="cbar-val" style="color:${c}">${cnt}</span>
+      </div>`;
+    }).join("")}
+  </div>
+
+  <!-- مظاريف متأخرة -->
+  ${stuckBundles.length>0?`
+  <div class="card">
+    <p class="card-title"><span class="ct-icon" style="background:#FEE2E2">🕐</span>مظاريف تحتاج متابعة (أكثر من 24 ساعة)</p>
+    ${stuckBundles.slice(0,8).map(b=>{
+      const lastEntry = b.log[b.log.length-1];
+      const hrs = Math.round((Date.now() - new Date(lastEntry.ts).getTime()) / 3600000);
+      return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
+        <span style="font-family:monospace;font-size:12px;font-weight:800;color:var(--navy)">${b.barcode}</span>
+        <span style="flex:1;font-size:12px;color:var(--mid)">${b.subject}${b.grade?" — "+b.grade:""}</span>
+        <span style="font-size:11px;background:var(--redBg);color:var(--red);padding:2px 8px;border-radius:8px;font-weight:700">⏰ ${hrs}ساعة</span>
+      </div>`;
+    }).join("")}
+  </div>`:""}`;
+}
+
+// ── شاشة العرض المدرسية ──────────────────────────────────────────
+let _displayMode = false;
+
+function toggleDisplayMode() {
+  _displayMode = !_displayMode;
+  const displayEl = document.getElementById("schoolDisplayMode");
+  if(displayEl) {
+    displayEl.style.display = _displayMode ? "block" : "none";
+    if(_displayMode) updateDisplayMode();
+  }
+}
+
+function updateDisplayMode() {
+  const el = document.getElementById("displayModeContent");
+  if(!el) return;
+
+  const total = state.bundles.length;
+  const done = state.bundles.filter(b=>b.stage===state.stages.length-1).length;
+  const pct = total>0?Math.round((done/total)*100):0;
+
+  const subjData = {};
+  state.bundles.forEach(b=>{
+    const s = b.subject||"غير محدد";
+    if(!subjData[s]) subjData[s] = { total:0, done:0, inProg:0 };
+    subjData[s].total++;
+    if(b.stage===state.stages.length-1) subjData[s].done++;
+    else if(b.stage>=0) subjData[s].inProg++;
+  });
+
+  const now = new Date();
+  const dateStr = now.toLocaleDateString("ar-SA", {weekday:"long",year:"numeric",month:"long",day:"numeric"});
+  const timeStr = now.toLocaleTimeString("ar-SA", {hour:"2-digit",minute:"2-digit"});
+
+  el.innerHTML = `
+  <div style="text-align:center;margin-bottom:32px">
+    <h1 style="font-size:42px;font-weight:900;color:#fff;margin-bottom:8px">${state.schoolName}</h1>
+    <p style="font-size:20px;color:rgba(255,255,255,.7)">${dateStr} — ${timeStr}</p>
+    <div style="display:inline-flex;align-items:center;gap:16px;margin-top:16px;
+      background:rgba(255,255,255,.1);padding:14px 28px;border-radius:16px;border:1px solid rgba(255,255,255,.2)">
+      <div style="text-align:center">
+        <div style="font-size:48px;font-weight:900;color:#22C55E">${pct}%</div>
+        <div style="font-size:14px;color:rgba(255,255,255,.7)">نسبة الإنجاز</div>
+      </div>
+      <div style="width:1px;height:60px;background:rgba(255,255,255,.2)"></div>
+      <div style="text-align:center">
+        <div style="font-size:48px;font-weight:900;color:#fff">${total}</div>
+        <div style="font-size:14px;color:rgba(255,255,255,.7)">إجمالي المظاريف</div>
+      </div>
+      <div style="width:1px;height:60px;background:rgba(255,255,255,.2)"></div>
+      <div style="text-align:center">
+        <div style="font-size:48px;font-weight:900;color:#F59E0B">${done}</div>
+        <div style="font-size:14px;color:rgba(255,255,255,.7)">مكتملة</div>
+      </div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px">
+    ${Object.entries(subjData).map(([subj,d])=>{
+      const p = d.total>0?Math.round((d.done/d.total)*100):0;
+      const isDone = p===100;
+      const isUrgent = p<30&&d.total>2;
+      const c = p>=80?"#22C55E":p>=50?"#F59E0B":"#EF4444";
+      return `<div style="background:${isDone?"rgba(34,197,94,.15)":isUrgent?"rgba(239,68,68,.15)":"rgba(255,255,255,.08)"};
+        border:1px solid ${isDone?"rgba(34,197,94,.4)":isUrgent?"rgba(239,68,68,.4)":"rgba(255,255,255,.15)"};
+        border-radius:16px;padding:20px;${isUrgent?"animation:pulse 2s infinite":""}"
+      >
+        <div style="font-size:18px;font-weight:800;color:#fff;margin-bottom:8px">${subj}</div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+          <span style="font-size:13px;color:rgba(255,255,255,.7)">📦 ${d.total} مظروف</span>
+          <span style="font-size:22px;font-weight:900;color:${c}">${p}%</span>
+        </div>
+        <div style="height:8px;background:rgba(255,255,255,.15);border-radius:99px;overflow:hidden">
+          <div style="height:100%;width:${p}%;background:${c};border-radius:99px;transition:width .5s"></div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:8px;font-size:11px;color:rgba(255,255,255,.6)">
+          <span>✅ ${d.done}</span>
+          <span>⏳ ${d.inProg}</span>
+          ${isDone?`<span style="color:#22C55E;font-weight:700">✓ مكتملة</span>`:""}
+          ${isUrgent?`<span style="color:#EF4444;font-weight:700">⚠️ عاجل</span>`:""}
+        </div>
+      </div>`;
+    }).join("")}
+  </div>`;
+}
+
+// ── لوحة سجل التدقيق ─────────────────────────────────────────────
+function renderAuditLog(el) {
+  loadAuditLog();
+  const entries = auditLog.slice(0,100);
+
+  el.innerHTML = `
+  <div class="page-header">
+    <div>
+      <div class="ph-title">🔍 سجل التدقيق الكامل</div>
+      <div class="ph-sub">جميع العمليات مسجلة ولا يمكن حذفها</div>
+    </div>
+    <div class="ph-actions">
+      <button class="btn btn-navy btn-sm" onclick="exportAuditLog()">📄 تصدير</button>
+    </div>
+  </div>
+  <div class="card">
+    ${entries.length===0?`<div class="empty"><span class="empty-icon">📋</span>لا توجد سجلات بعد</div>`:`
+    <div class="timeline">
+      ${entries.map((e,i)=>{
+        const catColors = { bundle:"#3B82F6", stage:"#8B5CF6", notif:"#F59E0B", settings:"#10B981", general:"#94A3B8" };
+        const c = catColors[e.category]||"#94A3B8";
+        return `<div class="tl-item">
+          <div class="tl-dot" style="background:${c}">${i+1}</div>
+          <div class="tl-content">
+            <div class="tl-action">${e.action}</div>
+            <div class="tl-meta">👤 ${e.user} (${e.role}) · ${fmt(e.ts)}</div>
+            ${e.details?`<div class="tl-note">${e.details}</div>`:""}
+          </div>
+        </div>`;
+      }).join("")}
+    </div>`}
+  </div>`;
+}
+
+function exportAuditLog() {
+  const text = auditLog.map(e => `${fmt(e.ts)} | ${e.user} | ${e.action} | ${e.details||""}`).join("\n");
+  const blob = new Blob(["\uFEFF"+text], {type:"text/plain;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `audit_log_${new Date().toISOString().slice(0,10)}.txt`;
+  a.click();
+  toast("✅ تم تصدير سجل التدقيق");
+}
+
+// ── مركز الإشعارات الداخلية ──────────────────────────────────────
+function renderNotifCenter(el) {
+  loadInternalNotifs();
+  const unread = internalNotifs.filter(n=>!n.read).length;
+
+  el.innerHTML = `
+  <div class="page-header">
+    <div>
+      <div class="ph-title">🔔 مركز الإشعارات</div>
+      <div class="ph-sub">${unread > 0 ? `${unread} إشعارات غير مقروءة` : "جميع الإشعارات مقروءة"}</div>
+    </div>
+    <div class="ph-actions">
+      <button class="btn btn-outline btn-sm" onclick="markAllRead()">✓ تعليم الكل مقروء</button>
+    </div>
+  </div>
+  <div class="card">
+    ${internalNotifs.length===0?`<div class="empty"><span class="empty-icon">🔔</span>لا توجد إشعارات</div>`:`
+    ${internalNotifs.slice(0,50).map(n=>{
+      const typeColors = { warning:"#F59E0B", error:"#EF4444", success:"#10B981", info:"#3B82F6" };
+      const c = typeColors[n.type]||"#3B82F6";
+      return `<div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);
+        background:${n.read?"transparent":"rgba(59,130,246,.04)"};border-radius:8px;padding:12px"
+        onclick="markRead('${n.id}')">
+        <div style="width:40px;height:40px;border-radius:12px;background:${c}20;display:flex;
+          align-items:center;justify-content:center;font-size:18px;flex-shrink:0">
+          ${n.type==="warning"?"⚠️":n.type==="error"?"❌":n.type==="success"?"✅":"ℹ️"}
+        </div>
+        <div style="flex:1">
+          <div style="font-weight:${n.read?600:800};color:var(--navy);font-size:13px">${n.title}</div>
+          <div style="font-size:12px;color:var(--mid);margin-top:2px">${n.body}</div>
+          <div style="font-size:10px;color:var(--faint);margin-top:4px;font-family:monospace">${fmt(n.ts)}</div>
+        </div>
+        ${!n.read?`<span style="width:8px;height:8px;border-radius:50%;background:${c};flex-shrink:0;margin-top:4px"></span>`:""}
+      </div>`;
+    }).join("")}`}
+  </div>`;
+}
+
+function markRead(id) {
+  const n = internalNotifs.find(x=>x.id===id);
+  if(n) { n.read = true; updateNotifBadge(); try { localStorage.setItem("internalNotifs", JSON.stringify(internalNotifs)); } catch(e){} }
+}
+
+function markAllRead() {
+  internalNotifs.forEach(n=>n.read=true);
+  updateNotifBadge();
+  try { localStorage.setItem("internalNotifs", JSON.stringify(internalNotifs)); } catch(e){}
+  renderNotifCenter(document.getElementById("pageContent"));
+}
+
+// ── تحسين renderCtrlScan لإضافة تدقيق ───────────────────────────
+const _origDoAdvance = doAdvance;
+function doAdvance() {
+  if(_confirmStg===null||!_scanHit) return;
+  const idx = _confirmStg;
+  const b = state.bundles.find(x=>x.id===_scanHit.id);
+  if(!b) return;
+  const prevStage = b.stage;
+  _origDoAdvance();
+  // إضافة للتدقيق
+  addAudit(
+    `تحديث مرحلة المظروف ${b.barcode}`,
+    `من: ${prevStage>=0?(state.stages[prevStage]||"بداية"):"بداية"} → إلى: ${state.stages[idx]}`,
+    "stage"
+  );
+  // إشعار داخلي
+  if(idx === state.stages.length-1) {
+    addInternalNotif("اكتمل مظروف! ✅", `${b.subject} — ${b.barcode}`, "success");
+  }
+}
+
+// ── تحسين sendNotif لإضافة تدقيق ────────────────────────────────
+const _origSendNotif = window.sendNotif;
+function sendNotif_v2() {
+  const teachers = _selTeachers.map(id=>state.teachers.find(t=>t.id===id)).filter(Boolean);
+  const names = teachers.map(t=>t.name).join("، ");
+  if(typeof _origSendNotif === "function") _origSendNotif();
+  addAudit(`إرسال تنبيه للمعلمين`, `${names} — ${NOTIFY_TYPES.find(t=>t.key===_selType)?.label||_selType}`, "notif");
+}
+
+// ── تنسيق محسّن لبطاقات المعلمين ─────────────────────────────────
+const AVATAR_COLORS = ["#3B82F6","#8B5CF6","#EC4899","#F97316","#10B981","#0EA5E9","#F59E0B","#6366F1"];
+
+function getAvatarColor(name) {
+  let sum = 0;
+  for(let c of name) sum += c.charCodeAt(0);
+  return AVATAR_COLORS[sum % AVATAR_COLORS.length];
+}
+
+// ── Sync Status Indicator ────────────────────────────────────────
+function updateSyncStatus(ok) {
+  const dot = document.getElementById("syncDot");
+  const txt = document.getElementById("syncTxt");
+  if(dot) dot.style.background = ok ? "#22C55E" : "#EF4444";
+  if(txt) txt.textContent = ok ? "متصل بالسحابة" : "غير متصل";
+}
+
+// ── Auto-detect Delay ────────────────────────────────────────────
+function checkForDelays() {
+  const now = Date.now();
+  state.bundles.forEach(b => {
+    if(b.stage >= 0 && b.stage < state.stages.length-1 && b.log.length > 0) {
+      const lastEntry = b.log[b.log.length-1];
+      const hrs = (now - new Date(lastEntry.ts).getTime()) / 3600000;
+      if(hrs > 48) {
+        addInternalNotif(
+          `تحذير: مظروف متأخر ⚠️`,
+          `${b.subject} — ${b.barcode} (${Math.round(hrs)} ساعة بدون تحديث)`,
+          "warning"
+        );
+      }
+    }
+  });
+}
+
+// ── PWA & Service Worker ─────────────────────────────────────────
+let _deferredPWAPrompt = null;
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  _deferredPWAPrompt = e;
+  const banner = document.getElementById("pwaInstallBanner");
+  if(banner) {
+    banner.style.display = "block";
+    banner.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:24px">📱</span>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:13px">ثبّت التطبيق</div>
+          <div style="font-size:11px;opacity:.8;margin-top:2px">للوصول السريع بدون متصفح</div>
+        </div>
+        <button onclick="installPWA()" style="background:var(--gold);color:var(--navy);border:none;border-radius:8px;padding:6px 12px;font-weight:700;cursor:pointer;font-size:12px">ثبّت</button>
+        <button onclick="document.getElementById('pwaInstallBanner').style.display='none'"
+          style="background:rgba(255,255,255,.15);border:none;border-radius:6px;padding:6px 8px;color:#fff;cursor:pointer">✕</button>
+      </div>`;
+  }
+});
+
+function installPWA() {
+  if(_deferredPWAPrompt) {
+    _deferredPWAPrompt.prompt();
+    _deferredPWAPrompt.userChoice.then(result => {
+      if(result.outcome === "accepted") toast("✅ تم تثبيت التطبيق بنجاح!");
+      _deferredPWAPrompt = null;
+      const banner = document.getElementById("pwaInstallBanner");
+      if(banner) banner.style.display = "none";
+    });
+  }
+}
+
+// ── Real-time Clock ──────────────────────────────────────────────
+function startRealtimeClock() {
+  function updateClock() {
+    const el = document.getElementById("realtimeClock");
+    if(el) {
+      const now = new Date();
+      el.textContent = now.toLocaleTimeString("ar-SA", {hour:"2-digit",minute:"2-digit",second:"2-digit"});
+    }
+    if(_displayMode) updateDisplayMode();
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+}
+
+// ── تهيئة التطوير الجديد ─────────────────────────────────────────
+function initEnterpriseFeatures() {
+  loadAuditLog();
+  loadInternalNotifs();
+  loadDarkMode();
+  initKeyboardShortcuts();
+  startRealtimeClock();
+  updateNotifBadge();
+
+  // فحص التأخيرات
+  setTimeout(checkForDelays, 3000);
+
+  // تسجيل دخول في سجل التدقيق
+  if(currentUser) {
+    addAudit("تسجيل دخول", `${currentUser.name} (${ROLE_LABEL[currentUser.role]||currentUser.role})`, "general");
+  }
+}
+
+
+// ── تحديث PAGES لإضافة الصفحات الجديدة ──────────────────────────
+// نضيف الصفحات الجديدة لكل دور
+(function() {
+  // admin
+  if(PAGES.admin) {
+    PAGES.admin.push(
+      {k:"ai_analysis", icon:"🤖", label:"الذكاء الاصطناعي"},
+      {k:"audit_log", icon:"🔍", label:"سجل التدقيق"}
+    );
+  }
+  // controller
+  if(PAGES.controller) {
+    PAGES.controller.push(
+      {k:"notif_center", icon:"🔔", label:"الإشعارات"}
+    );
+  }
+  // principal
+  if(PAGES.principal) {
+    PAGES.principal.push(
+      {k:"ai_analysis", icon:"🤖", label:"تحليل ذكي"},
+      {k:"audit_log", icon:"🔍", label:"سجل التدقيق"}
+    );
+  }
+  // notifier
+  if(PAGES.notifier) {
+    PAGES.notifier.push(
+      {k:"notif_center", icon:"🔔", label:"مركز الإشعارات"},
+      {k:"ai_analysis", icon:"🤖", label:"تحليل ذكي"}
+    );
+  }
+})();
+
+// ── تحديث navigateTo لإضافة الصفحات الجديدة ─────────────────────
+const _origNavigateTo = navigateTo;
+function navigateTo(page) {
+  switch(page) {
+    case "ai_analysis":
+      currentPage = page;
+      renderNav();
+      document.getElementById("appMain").scrollTop = 0;
+      renderAIAnalysis(document.getElementById("pageContent"));
+      break;
+    case "audit_log":
+      currentPage = page;
+      renderNav();
+      document.getElementById("appMain").scrollTop = 0;
+      renderAuditLog(document.getElementById("pageContent"));
+      break;
+    case "notif_center":
+      currentPage = page;
+      renderNav();
+      document.getElementById("appMain").scrollTop = 0;
+      renderNotifCenter(document.getElementById("pageContent"));
+      break;
+    default:
+      _origNavigateTo(page);
+  }
+}
+
+// ── تحديث enterShell لتهيئة الميزات الجديدة ──────────────────────
+const _origEnterShell = enterShell;
+function enterShell(found, page) {
+  _origEnterShell(found, page);
+  // تهيئة الميزات المؤسسية
+  setTimeout(initEnterpriseFeatures, 300);
+  // إظهار شريط الحالة
+  const syncBar = document.getElementById("syncBar");
+  if(syncBar) syncBar.style.display = "flex";
+}
+
+// ── تحسين lod dark mode عند التحميل ──────────────────────────────
+loadDarkMode();
+
+</script>
 </body>
 </html>
