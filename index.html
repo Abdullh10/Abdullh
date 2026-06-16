@@ -2218,6 +2218,7 @@ function renderSUsers(el) {
         <option value="principal">مدير المدرسة</option>
         <option value="controller">الكنترول</option>
         <option value="notifier">مسؤول التنبيهات</option>
+        <option value="monitor">مراقب اللجان</option>
       </select>
     </div>
     <button class="btn btn-navy btn-full" onclick="addUser()">إضافة الحساب</button>
@@ -3816,7 +3817,8 @@ function saveMonitorNote() {
   state.monitorNotes.push({ id:uid(), subject:subj, grade:grade, hall:hall, date:date, note:note, savedAt:nowISO(), user:currentUser.name });
   // إرسال إشعار للكنترول
   if (!state.inbox) state.inbox = [];
-  state.inbox.push({ id:uid(), to:"controller", from:"monitor", type:"info", text:"ملاحظة من مراقب اللجان: "+note+(subj?" ["+subj+(grade?" — "+grade:"")+"]":""), ts:nowISO(), read:false });
+  const inboxSuffix = subj ? " ["+subj+(grade?" — "+grade:"")+"]" : "";
+  state.inbox.push({ id:uid(), to:"controller", from:"مراقب اللجان", type:"info", title:"ملاحظة من مراقب اللجان"+inboxSuffix, body:note, ts:nowISO(), read:false });
   saveState(); saveToCloud();
   toast("✅ تم حفظ الملاحظة وإبلاغ الكنترول");
   renderMonitorCommittees(document.getElementById("pageContent"));
