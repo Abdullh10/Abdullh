@@ -764,7 +764,7 @@ const PAGES = {
   admin:      [ {k:"admin_new", icon:"✦", label:"مظروف جديد"}, {k:"admin_list",icon:"📦",label:"المظاريف"}, {k:"settings",icon:"⚙",label:"الإعدادات"} ],
   controller: [ {k:"ctrl_scan",icon:"📡",label:"مسح الباركود"}, {k:"ctrl_list",icon:"📋",label:"المظاريف"}, {k:"ctrl_schedule",icon:"📅",label:"جدول الاختبارات"}, {k:"ctrl_report",icon:"📄",label:"تقارير PDF"}, {k:"ctrl_minutes",icon:"📝",label:"محضر فتح المظاريف"}, {k:"inbox",icon:"🔔",label:"تنبيهات"} ],
   notifier:   [ {k:"notif_send",icon:"💬",label:"إرسال تنبيه"}, {k:"notif_log",icon:"📜",label:"سجل التنبيهات"}, {k:"inbox",icon:"🔔",label:"تنبيهات"} ],
-  principal:  [ {k:"principal_dashboard",icon:"📊",label:"لوحة المتابعة"}, {k:"principal_report",icon:"📈",label:"التقارير"}, {k:"principal_compose",icon:"✉️",label:"إرسال رسالة"}, {k:"principal_sent",icon:"📤",label:"الرسائل المُرسَلة"} ],
+  principal:  [ {k:"principal_report",icon:"📈",label:"التقارير"}, {k:"principal_compose",icon:"✉️",label:"إرسال رسالة"}, {k:"principal_sent",icon:"📤",label:"الرسائل المُرسَلة"} ],
   monitor:    [ {k:"monitor_committees",icon:"👁",label:"متابعة اللجان"}, {k:"monitor_papers",icon:"📄",label:"عد الأوراق"}, {k:"monitor_pledge",icon:"📋",label:"التعهدات"}, {k:"monitor_reports",icon:"🗂",label:"تقارير المراقب"} ],
 };
 
@@ -773,7 +773,52 @@ const PAGES = {
 // ═══════════════════════════════════════════════
 function uid()    { return Math.random().toString(36).slice(2,8).toUpperCase(); }
 function nowISO() { return new Date().toISOString(); }
-function fmt(iso) { try { return new Date(iso).toLocaleString("ar-SA",{dateStyle:"short",timeStyle:"short"}); } catch(e){ return iso; } }
+function fmt(iso) { try { return new Date(iso).toLocaleString("ar-SA-u-ca-islamic-umalqura",{dateStyle:"short",timeStyle:"short"}); } catch(e){ return iso; } }
+
+// ── منظومة التاريخ الهجري ──────────────────────────
+const HIJRI_MONTHS = ["محرم","صفر","ربيع الأول","ربيع الثاني","جمادى الأولى","جمادى الثانية","رجب","شعبان","رمضان","شوال","ذو القعدة","ذو الحجة"];
+function _arNum(s){ return parseInt(String(s).replace(/[٠-٩]/g,d=>d.charCodeAt(0)-1632))||0; }
+function currentHijriParts(){
+  const n=new Date();
+  return { d:_arNum(n.toLocaleDateString("ar-SA-u-ca-islamic-umalqura",{day:"numeric"})),
+           m:_arNum(n.toLocaleDateString("ar-SA-u-ca-islamic-umalqura",{month:"numeric"})),
+           y:_arNum(n.toLocaleDateString("ar-SA-u-ca-islamic-umalqura",{year:"numeric"})) };
+}
+// أنشئ منتقي هجري (ثلاثة قوائم: يوم / شهر / سنة)
+function hijriPicker(id, existingVal){
+  const cur = currentHijriParts();
+  let sel = {d:cur.d, m:cur.m, y:cur.y};
+  if(existingVal && existingVal.includes("هـ")){
+    const p = existingVal.replace("هـ","").split("-");
+    if(p.length===3){ sel={y:parseInt(p[0]),m:parseInt(p[1]),d:parseInt(p[2])}; }
+  }
+  const days  = Array.from({length:30},(_,i)=>i+1).map(n=>`<option value="${n}"${n===sel.d?" selected":""}>${n}</option>`).join("");
+  const months= HIJRI_MONTHS.map((mn,i)=>`<option value="${i+1}"${(i+1)===sel.m?" selected":""}>${mn}</option>`).join("");
+  const years = Array.from({length:12},(_,i)=>cur.y-1+i).map(yr=>`<option value="${yr}"${yr===sel.y?" selected":""}>${yr}هـ</option>`).join("");
+  return `<div style="display:flex;gap:4px;flex-wrap:nowrap">
+    <select class="inp" id="${id}_d" style="flex:0 0 60px;min-width:0;padding-right:4px;padding-left:4px">${days}</select>
+    <select class="inp" id="${id}_m" style="flex:1;min-width:0">${months}</select>
+    <select class="inp" id="${id}_y" style="flex:0 0 85px;min-width:0;padding-right:4px;padding-left:4px">${years}</select>
+  </div>`;
+}
+// اقرأ قيمة المنتقي كـ "YYYY-MM-DDهـ" (قابلة للفرز)
+function hijriVal(id){
+  const d=String((document.getElementById(id+"_d")||{}).value||"").padStart(2,"0");
+  const m=String((document.getElementById(id+"_m")||{}).value||"").padStart(2,"0");
+  const y=(document.getElementById(id+"_y")||{}).value||"";
+  return (d!=="00"&&m!=="00"&&y)?`${y}-${m}-${d}هـ`:"";
+}
+// حوّل "YYYY-MM-DDهـ" أو ISO إلى نص هجري للعرض
+function inputDateToHijri(val){
+  if(!val) return "";
+  if(val.includes("هـ")){
+    const p=val.replace("هـ","").split("-");
+    if(p.length===3){ const mn=HIJRI_MONTHS[parseInt(p[1])-1]||""; return `${parseInt(p[2])} ${mn} ${p[0]}هـ`; }
+    return val;
+  }
+  try{ return new Date(val).toLocaleDateString("ar-SA-u-ca-islamic-umalqura",{year:"numeric",month:"long",day:"numeric"}); }catch(e){ return val; }
+}
+function todayHijri(){ return inputDateToHijri(hijriVal("__dummy__")||(() => { const c=currentHijriParts(); return `${c.y}-${String(c.m).padStart(2,"0")}-${String(c.d).padStart(2,"0")}هـ`; })()); }
 
 let _toastTimer;
 function toast(msg, type="ok") {
@@ -1010,7 +1055,6 @@ function navigateTo(page) {
     case "notif_log":    renderNotifLog(el);      break;
     case "ctrl_schedule":renderCtrlSchedule(el);  break;
     case "ctrl_report":  renderCtrlReport(el);    break;
-    case "principal_dashboard": renderPrincipalDashboard(el); break;
     case "principal_report":    renderPrincipalReport(el);    break;
     case "principal_compose":   renderPrincipalCompose(el);   break;
     case "principal_sent":      renderPrincipalSent(el);      break;
@@ -1115,8 +1159,8 @@ function renderAdminNew(el) {
         </select>
       </div>
       <div>
-        <label class="lbl">تاريخ الاختبار</label>
-        <input class="inp" id="bf_examdate" type="date"/>
+        <label class="lbl">تاريخ الاختبار (هجري)</label>
+        ${hijriPicker("bf_examdate")}
       </div>
       <div>
         <label class="lbl">القاعة / اللجنة</label>
@@ -1149,7 +1193,7 @@ function submitNewBundle() {
   const auditor2   = document.getElementById("bf_auditor2").value;
   const note       = document.getElementById("bf_note").value;
   const examDay    = (document.getElementById("bf_day")||{value:""}).value||"";
-  const examDate   = (document.getElementById("bf_examdate")||{value:""}).value||"";
+  const examDate   = hijriVal("bf_examdate")||"";
   const examHall   = (document.getElementById("bf_hall")||{value:""}).value||"";
   const examStart  = (document.getElementById("bf_start")||{value:""}).value||"";
   const examEnd    = (document.getElementById("bf_end")||{value:""}).value||"";
@@ -1337,8 +1381,8 @@ function adminEditBundle(id) {
           <option ${b.examDay=='الأربعاء'?'selected':''}">الأربعاء</option>
           <option ${b.examDay=='الخميس'?'selected':''}">الخميس</option>
         </select></div>
-      <div><label style="font-size:11px;color:var(--mid);display:block;margin-bottom:3px">التاريخ</label>
-        <input class="inp" id="eb_examdate" type="date" value="${b.examDate||''}" style="font-size:12px"/></div>
+      <div><label style="font-size:11px;color:var(--mid);display:block;margin-bottom:3px">التاريخ (هجري)</label>
+        ${hijriPicker("eb_examdate", b.examDate||"")}</div>
       <div><label style="font-size:11px;color:var(--mid);display:block;margin-bottom:3px">القاعة</label>
         <input class="inp" id="eb_hall" value="${b.examHall||''}" style="font-size:12px"/></div>
       <div><label style="font-size:11px;color:var(--mid);display:block;margin-bottom:3px">وقت البدء</label>
@@ -1369,7 +1413,7 @@ function saveEditBundle(id) {
   b.auditor    = document.getElementById("eb_auditor").value;
   b.auditor2   = document.getElementById("eb_auditor2").value;
   b.examDay    = (document.getElementById("eb_day")||{value:""}).value||b.examDay||"";
-  b.examDate   = (document.getElementById("eb_examdate")||{value:""}).value||b.examDate||"";
+  b.examDate   = hijriVal("eb_examdate")||b.examDate||"";
   b.examHall   = (document.getElementById("eb_hall")||{value:""}).value||b.examHall||"";
   b.examStart  = (document.getElementById("eb_start")||{value:""}).value||b.examStart||"";
   b.examEnd    = (document.getElementById("eb_end")||{value:""}).value||b.examEnd||"";
@@ -1657,7 +1701,7 @@ function renderScanResult() {
       <div class="info-cell"><p class="k">🔏 مدقق 1</p><p class="v">${audT?audT.name:"—"}</p></div>
       ${audT2?`<div class="info-cell"><p class="k">🔏 مدقق 2</p><p class="v">${audT2.name}</p></div>`:""}
       ${b.note?`<div class="info-cell"><p class="k">ملاحظة</p><p class="v">${b.note}</p></div>`:""}
-      ${b.examDate?`<div class="info-cell"><p class="k">📅 يوم الاختبار</p><p class="v">${b.examDay||""} ${b.examDate}</p></div>`:""}
+      ${b.examDate?`<div class="info-cell"><p class="k">📅 يوم الاختبار</p><p class="v">${b.examDay||""} ${inputDateToHijri(b.examDate)}</p></div>`:""}
       ${b.examStart?`<div class="info-cell"><p class="k">⏰ وقت الاختبار</p><p class="v">${b.examStart}${b.examEnd?" — "+b.examEnd:""}</p></div>`:""}
       ${b.examHall?`<div class="info-cell"><p class="k">🏫 القاعة</p><p class="v">${b.examHall}</p></div>`:""}
     </div>
@@ -2228,7 +2272,7 @@ function renderCtrlSchedule(el) {
             <td style="padding:9px 12px;font-weight:700;color:var(--navy)">${b.subject}</td>
             <td style="padding:9px 12px;color:var(--mid)">${b.grade||"—"}</td>
             <td style="padding:9px 12px;color:var(--mid)">${b.examDay||"—"}</td>
-            <td style="padding:9px 12px;color:var(--mid);direction:ltr;text-align:right">${b.examDate}</td>
+            <td style="padding:9px 12px;color:var(--mid);direction:ltr;text-align:right">${inputDateToHijri(b.examDate)}</td>
             <td style="padding:9px 12px;color:var(--mid);direction:ltr;text-align:right">${b.examStart||"—"}${b.examEnd?" — "+b.examEnd:""}</td>
             <td style="padding:9px 12px;color:var(--mid)">${b.examHall||"—"}</td>
             <td style="padding:9px 12px;text-align:center;font-weight:700;color:var(--navy)">${b.count}</td>
@@ -2253,7 +2297,7 @@ function printSchedule() {
       <td style="padding:8px 10px;font-weight:700">${b.subject}</td>
       <td style="padding:8px 10px">${b.grade||"—"}</td>
       <td style="padding:8px 10px">${b.examDay||"—"}</td>
-      <td style="padding:8px 10px;direction:ltr;text-align:right">${b.examDate}</td>
+      <td style="padding:8px 10px;direction:ltr;text-align:right">${inputDateToHijri(b.examDate)}</td>
       <td style="padding:8px 10px;direction:ltr;text-align:right">${b.examStart||"—"}${b.examEnd?" — "+b.examEnd:""}</td>
       <td style="padding:8px 10px">${b.examHall||"—"}</td>
       <td style="padding:8px 10px;text-align:center">${b.count}</td>
@@ -2272,7 +2316,7 @@ function printSchedule() {
   <div style="display:flex;align-items:center;gap:14px;margin-bottom:4px">
     <img src="${LOGO_SRC}" alt="شعار" style="width:100px;height:100px;object-fit:contain"/>
     <div><h1>${state.schoolName}</h1>
-    <p class="sub">جدول الاختبارات — تاريخ الطباعة: ${new Date().toLocaleDateString("ar-SA")}</p></div>
+    <p class="sub">جدول الاختبارات — تاريخ الطباعة: ${new Date().toLocaleDateString("ar-SA-u-ca-islamic-umalqura")}</p></div>
   </div>
   <table>
     <thead><tr>
@@ -2478,7 +2522,7 @@ function generatePDF(subjectFilter) {
   const bundles = subjectFilter==="ALL" ? state.bundles : state.bundles.filter(b=>b.subject===subjectFilter);
   if(bundles.length===0){toast("لا توجد بيانات","err");return;}
   const title = subjectFilter==="ALL" ? "تقرير شامل — جميع المواد" : `تقرير مادة ${subjectFilter}`;
-  const printDate = new Date().toLocaleDateString("ar-SA",{dateStyle:"full"});
+  const printDate = new Date().toLocaleDateString("ar-SA-u-ca-islamic-umalqura",{dateStyle:"full"});
 
   // Summary counts per stage
   const stageSummary = state.stages.map((s,i)=>{
@@ -2501,14 +2545,14 @@ function generatePDF(subjectFilter) {
       <td style="padding:8px 10px;font-weight:700">${b.subject}</td>
       <td style="padding:8px 10px">${b.grade||"—"}</td>
       <td style="padding:8px 10px;text-align:center">${b.count}</td>
-      <td style="padding:8px 10px">${b.examDay||""}${b.examDate?" "+b.examDate:""}</td>
+      <td style="padding:8px 10px">${b.examDay||""}${b.examDate?" "+inputDateToHijri(b.examDate):""}</td>
       <td style="padding:8px 10px">${b.examHall||"—"}</td>
       <td style="padding:8px 10px">${corrT?corrT.name:"—"}</td>
       <td style="padding:8px 10px">${revT?revT.name:"—"}</td>
       <td style="padding:8px 10px">${audT?audT.name:"—"}</td>
       <td style="padding:8px 10px;font-size:11px;font-weight:700;color:${b.stage<0?"#64748b":"#0D1F3C"}">${stageName}</td>
       <td style="padding:8px 10px;font-size:10px;font-family:monospace;direction:ltr;color:#64748b">${bar} ${pct}%</td>
-      <td style="padding:8px 10px;font-size:10px;color:#64748b">${lastLog?new Date(lastLog.ts).toLocaleDateString("ar-SA"):"—"}</td>
+      <td style="padding:8px 10px;font-size:10px;color:#64748b">${lastLog?new Date(lastLog.ts).toLocaleDateString("ar-SA-u-ca-islamic-umalqura"):"—"}</td>
     </tr>`;
   }).join("");
 
@@ -2517,7 +2561,7 @@ function generatePDF(subjectFilter) {
     <div style="margin-bottom:20px;page-break-inside:avoid">
       <h4 style="font-size:13px;color:#0D1F3C;margin-bottom:6px;border-right:3px solid #C8911F;padding-right:8px">
         ${b.barcode} — ${b.subject}${b.grade?" ("+b.grade+")":""} · ${b.count} ورقة
-        ${b.examDate?` · 📅 ${b.examDay||""} ${b.examDate}`:""}
+        ${b.examDate?` · 📅 ${b.examDay||""} ${inputDateToHijri(b.examDate)}`:""}
       </h4>
       <table style="width:100%;border-collapse:collapse;font-size:11px">
         <thead><tr style="background:#f1f5f9">
@@ -3280,7 +3324,7 @@ function renderPrinBundle(el) {
       <div class="info-cell"><p class="k">الصف</p><p class="v">${b.grade||"—"}</p></div>
       <div class="info-cell"><p class="k">عدد الأوراق</p><p class="v">${b.count} ورقة</p></div>
       <div class="info-cell"><p class="k">التقدم</p><p class="v" style="color:${color}">${pct}%</p></div>
-      ${b.examDate?`<div class="info-cell"><p class="k">📅 تاريخ الاختبار</p><p class="v">${b.examDay||""} ${b.examDate}</p></div>`:""}
+      ${b.examDate?`<div class="info-cell"><p class="k">📅 تاريخ الاختبار</p><p class="v">${b.examDay||""} ${inputDateToHijri(b.examDate)}</p></div>`:""}
       ${b.examHall?`<div class="info-cell"><p class="k">🏫 القاعة</p><p class="v">${b.examHall}</p></div>`:""}
       ${b.examStart?`<div class="info-cell"><p class="k">⏰ وقت الاختبار</p><p class="v">${b.examStart}${b.examEnd?" — "+b.examEnd:""}</p></div>`:""}
       ${b.note?`<div class="info-cell" style="grid-column:span 2"><p class="k">ملاحظة</p><p class="v">${b.note}</p></div>`:""}
@@ -3491,7 +3535,7 @@ function renderPrincipalReport(el) {
             +"<td style='text-align:center'><span style='color:#059669;font-weight:700'>"+d.done+"</span></td>"
             +"<td style='text-align:center'><span style='color:#D97706;font-weight:700'>"+d.inProg+"</span></td>"
             +"<td><div style='display:flex;align-items:center;gap:5px'><div style='flex:1;height:6px;background:var(--border);border-radius:99px;overflow:hidden;min-width:45px'><div style='height:100%;width:"+p+"%;background:"+c+";border-radius:99px'></div></div><span style='font-size:11px;font-weight:700;color:"+c+"'>"+p+"%</span></div></td>"
-            +"<td><button onclick='_prinView=&quot;subject&quot;;_prinSubject=&quot;"+subj+"&quot;;_prinGradeFilter=&quot;&quot;;navigateTo(&quot;principal_dashboard&quot;)' style='background:var(--navy);color:#fff;border:none;border-radius:var(--r6);padding:4px 9px;cursor:pointer;font-size:11px;font-family:inherit;font-weight:700'>تفاصيل</button></td></tr>";
+            +"</tr>";
         }).join("")}
       </tbody>
     </table>
@@ -3541,7 +3585,7 @@ function renderPrincipalReport(el) {
 
 function generateIncompletePDF() {
   const incompleteBundles=state.bundles.filter(b=>b.stage<state.stages.length-1);
-  const printDate=new Date().toLocaleDateString("ar-SA",{dateStyle:"full"});
+  const printDate=new Date().toLocaleDateString("ar-SA-u-ca-islamic-umalqura",{dateStyle:"full"});
   if(incompleteBundles.length===0){toast("لا توجد مظاريف غير مكتملة ✅","ok");return;}
   const rows=incompleteBundles.map((b,i)=>{
     const ct=state.teachers.find(t=>t.id===b.corrector);
@@ -3561,7 +3605,7 @@ function generatePrincipalPDF() {
   const newB       = state.bundles.filter(b=>b.stage<0).length;
   const totalPapers= state.bundles.reduce((a,b)=>a+b.count,0);
   const pct        = total>0?Math.round((done/total)*100):0;
-  const printDate  = new Date().toLocaleDateString("ar-SA",{dateStyle:"full"});
+  const printDate  = new Date().toLocaleDateString("ar-SA-u-ca-islamic-umalqura",{dateStyle:"full"});
 
   const subjectRows={};
   state.bundles.forEach(b=>{
@@ -3582,7 +3626,7 @@ function generatePrincipalPDF() {
       <td style="text-align:center">${b.count}</td>
       <td>${corrT?corrT.name:"—"}</td>
       <td style="font-weight:700;color:${b.stage===state.stages.length-1?"#059669":"#0D1F3C"}">${sName}</td>
-      <td style="font-size:10px;color:#64748b">${lastLog?new Date(lastLog.ts).toLocaleDateString("ar-SA"):"—"}</td>
+      <td style="font-size:10px;color:#64748b">${lastLog?new Date(lastLog.ts).toLocaleDateString("ar-SA-u-ca-islamic-umalqura"):"—"}</td>
     </tr>`;
   }).join("");
 
@@ -3696,7 +3740,7 @@ function renderMonitorCommittees(el) {
           </div>
           <div>
             <label class="lbl">التاريخ</label>
-            <input class="inp" id="mnDate" type="date" value="${new Date().toISOString().slice(0,10)}"/>
+            ${hijriPicker("mnDate")}
           </div>
         </div>
         <div style="margin-bottom:10px">
@@ -3725,7 +3769,7 @@ function renderMonitorCommittees(el) {
               return `<tr style="border-bottom:1px solid var(--border);background:${i%2===0?"#fff":"var(--bg)"}">
                 <td style="padding:9px 10px;font-weight:700;color:var(--navy)">${s.subject||"—"}</td>
                 <td style="padding:9px 10px;color:var(--mid)">${s.grade||"—"}</td>
-                <td style="padding:9px 10px;color:var(--mid);direction:ltr;text-align:right">${s.date||"—"}</td>
+                <td style="padding:9px 10px;color:var(--mid)">${inputDateToHijri(s.date)||"—"}</td>
                 <td style="padding:9px 10px;color:var(--mid);direction:ltr;text-align:right">${s.startTime||""}${s.endTime?" — "+s.endTime:""}</td>
                 <td style="padding:9px 10px;color:var(--mid)">${s.hall||"—"}</td>
                 <td style="padding:9px 10px;text-align:center">
@@ -3749,7 +3793,7 @@ function renderMonitorCommittees(el) {
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
             <span style="font-weight:800;color:var(--navy);font-size:13px">${n.subject||"—"} — ${n.grade||"—"}</span>
             <span style="font-size:11px;color:var(--muted)">${n.hall||""}</span>
-            <span style="font-size:11px;color:var(--muted);margin-right:auto">${n.date||""}</span>
+            <span style="font-size:11px;color:var(--muted);margin-right:auto">${inputDateToHijri(n.date)||""}</span>
           </div>
           <p style="font-size:13px;color:var(--dark);margin-bottom:6px">${n.note}</p>
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
@@ -3765,7 +3809,7 @@ function saveMonitorNote() {
   const subj = document.getElementById("mnSubj").value.trim();
   const grade = document.getElementById("mnGrade").value.trim();
   const hall = document.getElementById("mnHall").value.trim();
-  const date = document.getElementById("mnDate").value.trim();
+  const date = hijriVal("mnDate");
   const note = document.getElementById("mnNote").value.trim();
   if (!note) { toast("اكتب الملاحظة أولاً","err"); return; }
   if (!state.monitorNotes) state.monitorNotes = [];
@@ -3822,13 +3866,13 @@ function renderMonitorPapers(el) {
           </div>
           <div>
             <label class="lbl">التاريخ</label>
-            <input class="inp" id="ppDate" type="date" value="${new Date().toISOString().slice(0,10)}"/>
+            ${hijriPicker("ppDate")}
           </div>
         </div>
         <div class="g2" style="margin-bottom:10px">
           <div>
             <label class="lbl">اسم الملاحظ المسلِّم</label>
-            <input class="inp" id="ppObserver" placeholder="اسم الملاحظ"/>
+            <select class="inp" id="ppObserver">${teacherOptions()}</select>
           </div>
           <div>
             <label class="lbl">عدد الطلاب الحاضرين</label>
@@ -3903,7 +3947,7 @@ function saveMonitorPapers() {
   const subj = document.getElementById("ppSubj").value.trim();
   const grade = document.getElementById("ppGrade").value.trim();
   const hall = document.getElementById("ppHall").value.trim();
-  const date = document.getElementById("ppDate").value.trim();
+  const date = hijriVal("ppDate");
   const observer = document.getElementById("ppObserver").value.trim();
   const students = document.getElementById("ppStudents").value.trim();
   const qCount = document.getElementById("ppQCount").value.trim();
@@ -3928,168 +3972,296 @@ function saveMonitorPapers() {
 // ─────────────────────────────────────────────
 // التعهدات الإلكترونية
 // ─────────────────────────────────────────────
+// قائمة جميع نماذج التعهدات
+// قائمة المعلمين مرتبة أبجدياً لاستخدامها في النماذج
+function teacherOptions(addEmpty=true) {
+  const sorted = [...(state.teachers||[])].sort((a,b)=>a.name.localeCompare(b.name,"ar"));
+  return (addEmpty?`<option value="">-- اختر الملاحظ --</option>`:"")+sorted.map(t=>`<option value="${t.name}">${t.name}</option>`).join("");
+}
+
+const PLEDGE_FORMS = [
+  {
+    key:"iqrar_general", icon:"📝", label:"إقرار", color:"#64748B", category:"إقرارات",
+    title:"إقرار",
+    subTitle:"اختبار نهاية الفصل الدراسي الثاني للعام الدراسي ١٤٤٧هـ",
+    textTemplate: d=>`بأني ${d.st_text||"..."}`,
+    hasStudentFields:true, hasStudentSig:true, hasMonitorSig:true,
+    extraFields:[{id:"st_text",label:"نص الإقرار",type:"textarea",placeholder:"اكتب نص الإقرار هنا..."}]
+  },
+  {
+    key:"absent_record", icon:"🚫", label:"محضر غياب طالب", color:"#DC2626", category:"غياب",
+    title:"محضر غياب طالب",
+    subTitle:"اختبار نهاية الفصل الدراسي الثاني للعام الدراسي ١٤٤٧هـ",
+    hasStudentFields:true, hasStudentSig:false, hasMonitorSig:true,
+    extraFields:[
+      {id:"st_observer1",label:"اسم الملاحظ الأول",type:"teacher_select"},
+      {id:"st_observer2",label:"اسم الملاحظ الثاني",type:"teacher_select"},
+      {id:"st_supervisor",label:"المسؤول عن لجنة التحكم والضبط",type:"teacher_select"},
+    ]
+  },
+  {
+    key:"no_shading", icon:"✏️", label:"تعهد بعدم التظليل بالقلم الجاف أو الحبر", color:"#7C3AED", category:"مخالفات الكتابة",
+    title:"تعهد بعدم التظليل بالقلم الجاف أو الحبر في ورقة الإجابة",
+    subTitle:"اختبار نهاية الفصل الدراسي الثاني للعام الدراسي ١٤٤٧هـ",
+    textTemplate: d=>`بأني قد استخدمت القلم الجاف أو الحبر في اختبار مادة ${d.subject||"..."} في تظليل الإجابة. وأتعهد بعد تكرار ذلك، وللمدرسة الحق في تطبيق النظام المتبع للائحة الاختبارات وعلى ذلك أوقع.`,
+    hasStudentFields:true, hasStudentSig:true, hasMonitorSig:true, extraFields:[]
+  },
+  {
+    key:"general_rules", icon:"📋", label:"تعهد بالالتزام بالنظام العام", color:"#1D4ED8", category:"إقرارات",
+    title:"تعهد بالالتزام بالنظام العام للاختبارات",
+    subTitle:"اختبار نهاية الفصل الدراسي الثاني للعام الدراسي ١٤٤٧هـ",
+    textTemplate: d=>`بالالتزام بالنظام العام للاختبارات، نتيجة ما حدث مني ${d.st_violation||"..."}`,
+    hasStudentFields:true, hasStudentSig:true, hasMonitorSig:true,
+    extraFields:[{id:"st_violation",label:"وصف ما حدث",type:"textarea",placeholder:"اذكر ما حدث بالتفصيل..."}]
+  },
+  {
+    key:"no_cheating", icon:"🚨", label:"تعهد بعدم الغش", color:"#DC2626", category:"مخالفات الغش",
+    title:"تعهد بعدم الغش",
+    subTitle:"اختبار نهاية الفصل الدراسي الثاني للعام الدراسي ١٤٤٧هـ",
+    textTemplate: ()=>`بعدم الغش مرة أخرى، وإني أعلم جيداً أنه في حالة صدر مني ذلك مرة أخرى فسوف أكون عرضة لتطبيق ما ورد في دليل نظام وإجراءات الاختبارات. وعلى ذلك أوقع.`,
+    hasStudentFields:true, hasMaterial:true, hasStudentSig:true, hasMonitorSig:true, extraFields:[]
+  },
+  {
+    key:"late_under15", icon:"⏰", label:"تعهد بعدم التأخر (أقل من ١٥ دقيقة)", color:"#D97706", category:"غياب وتأخر",
+    title:"تعهد بعدم التأخر عن الاختبار ( لمدة لا تزيد عن ١٥ دقيقة )",
+    subTitle:"اختبار نهاية الفصل الدراسي الثاني للعام الدراسي ١٤٤٧هـ",
+    textTemplate: ()=>`بعدم التأخر عن الموعد المحدد للاختبار مرة أخرى، وإني أعلم جيداً أنه في حالة تأخري مرة أخرى فسوف يتم تطبيق النظام المتبع للائحة الاختبارات، وعلى ذلك أوقع.`,
+    hasStudentFields:true, hasStudentSig:true, hasMonitorSig:true,
+    extraFields:[
+      {id:"st_arrtime",label:"وقت الحضور",type:"time"},
+      {id:"st_delay_rep",label:"تكرار التأخر",type:"select",options:["الأولى","الثانية"]},
+    ]
+  },
+  {
+    key:"cheat_paper_record", icon:"📄", label:"محضر تصحيح ورقة الطالب الغاش", color:"#991B1B", category:"مخالفات الغش",
+    title:"محضر تصحيح ورقة الطالب الغاش",
+    textTemplate: d=>`بعد الاطلاع على ورقة الطالب في مادة: ${d.subject||"..."} الصف: ${d.grade||"..."} والمرفقات التي ضبطت معه، تبين أثناء التصحيح أن الطالب استفاد من الأوراق في حل الفقرات التالية: ${d.st_paragraphs||"..."} فقط. وعليه فقد تم خصم الدرجات من هذه الفقرات، وهي (${d.st_deducted||"0"}) درجة.`,
+    hasStudentFields:true, hasStudentSig:false, hasMonitorSig:false,
+    extraFields:[
+      {id:"st_paragraphs",label:"الفقرات التي استفاد منها",type:"textarea",placeholder:"اذكر الفقرات..."},
+      {id:"st_deducted",label:"الدرجات المخصومة",placeholder:"0",type:"number"},
+      {id:"st_teacher",label:"معلم المادة",type:"teacher_select"},
+      {id:"st_supervisor",label:"منسق لجنة التحكم والضبط",type:"teacher_select"},
+    ]
+  },
+  {
+    key:"general_rules_v2", icon:"⚖️", label:"تعهد بالالتزام بالنظام مع وصف المخالفة", color:"#0F172A", category:"إقرارات",
+    title:"تعهد بالالتزام بالنظام العام للاختبارات",
+    subTitle:"اختبار نهاية الفصل الدراسي الثاني للعام الدراسي ١٤٤٧هـ",
+    textTemplate: d=>`بالالتزام بالنظام العام للاختبارات، نتيجة ما حدث مني ${d.st_violation||"..."}`,
+    hasStudentFields:true, hasStudentSig:true, hasMonitorSig:true,
+    extraFields:[
+      {id:"st_violation",label:"وصف المخالفة",type:"textarea",placeholder:"اذكر المخالفة..."},
+      {id:"st_vtype",label:"نوع المخالفة",type:"select",options:["فردي","جماعي"]},
+      {id:"st_semester",label:"الفصل الدراسي",type:"select",options:["الأول","الثاني"]},
+      {id:"st_vrep",label:"تكرار المخالفة",type:"select",options:["الأولى","الثانية","الثالثة"]},
+      {id:"st_observer_name",label:"اسم ملاحظ اللجنة",type:"teacher_select"},
+    ]
+  },
+  {
+    key:"late_over15", icon:"⏱️", label:"تعهد بعدم التأخر (أكثر من ١٥ دقيقة)", color:"#C2410C", category:"غياب وتأخر",
+    title:"تعهد بعدم التأخر عن الاختبار ( لمدة تزيد عن ١٥ دقيقة )",
+    subTitle:"صورة لولي الأمر للعلم",
+    textTemplate: ()=>`بعدم التأخر عن الموعد المحدد للاختبار مرة أخرى، وإني أعلم جيداً أنه في حالة تأخري مرة أخرى فسوف يتم تطبيق النظام المتبع للائحة الاختبارات، وعلى ذلك أوقع.`,
+    hasStudentFields:true, hasStudentSig:true, hasMonitorSig:true,
+    extraFields:[
+      {id:"st_arrtime",label:"وقت الحضور",type:"time"},
+      {id:"st_starttime",label:"وقت بدأ الاختبار",type:"time"},
+      {id:"st_delay_reason",label:"سبب التأخر",type:"textarea",placeholder:"اذكر سبب التأخر..."},
+      {id:"st_delay_rep",label:"تكرار التأخر",type:"select",options:["الأولى","الثانية"]},
+      {id:"st_decision",label:"قرار لجنة التحكم والضبط",type:"select",options:["يحسم من الطالب درجة من درجات المواظبة","قبول عذر الطالب وتصحيح ورقة إجابته","عدم قبول عذر الطالب ولا تعتمد إجابته","إجراء آخر"]},
+    ]
+  },
+  {
+    key:"no_cheat_attempt", icon:"🚫", label:"تعهد بعدم محاولة الغش", color:"#9D174D", category:"مخالفات الغش",
+    title:"تعهد بعدم محاولة الغش",
+    subTitle:"اختبار نهاية الفصل الدراسي الثاني للعام الدراسي ١٤٤٧هـ",
+    textTemplate: ()=>`بعدم تكرار ما بدر مني من محاولة للغش وفي حالة تكرار المحاولة مرة أخرى فسوف يتم تطبيق النظام المتبع للائحة الاختبارات، وعلى ذلك أوقع.`,
+    hasStudentFields:true, hasStudentSig:true, hasMonitorSig:true,
+    extraFields:[
+      {id:"st_vtype",label:"نوع المخالفة",type:"select",options:["فردي","جماعي"]},
+      {id:"st_semester",label:"الفصل الدراسي",type:"select",options:["الأول","الثاني"]},
+      {id:"st_vrep",label:"تكرار المخالفة",type:"select",options:["الأولى","الثانية","الثالثة"]},
+      {id:"st_observer_name",label:"اسم ملاحظ اللجنة",type:"teacher_select"},
+    ]
+  },
+  {
+    key:"leave_essay", icon:"📝", label:"إقرار بترك الإجابة عن السؤال المقالي", color:"#0369A1", category:"إقرارات",
+    title:"إقرار بترك الإجابة عن السؤال المقالي",
+    subTitle:"اختبار نهاية الفصل الدراسي الثاني للعام الدراسي ١٤٤٧هـ",
+    textTemplate: d=>`بأني اطلعت على الأسئلة المقالية كاملة وتم تركها دون حل بسبب: ${d.st_reason||"..."}`,
+    hasStudentFields:true, hasStudentSig:true, hasMonitorSig:true,
+    extraFields:[{id:"st_reason",label:"سبب ترك الإجابة",type:"textarea",placeholder:"اذكر السبب..."}]
+  },
+  {
+    key:"blue_pen", icon:"🖊️", label:"تعهد بالالتزام بالقلم الجاف الأزرق", color:"#1E40AF", category:"مخالفات الكتابة",
+    title:"تعهد بالالتزام بالكتابة بالقلم الجاف الأزرق",
+    subTitle:"اختبار نهاية الفصل الدراسي الثاني للعام الدراسي ١٤٤٧هـ",
+    textTemplate: d=>`بأني قد استخدمت قلماً غير القلم الجاف الأزرق في اختبار مادة ${d.subject||"..."}. وأتعهد بعد تكرار ذلك، وللمدرسة الحق في تطبيق النظام المتبع للائحة الاختبارات وعلى ذلك أوقع.`,
+    hasStudentFields:true, hasStudentSig:true, hasMonitorSig:true, extraFields:[]
+  },
+  {
+    key:"no_tamper_auto", icon:"🖥️", label:"تعهد بعدم العبث بورقة الإجابة (الرصد الآلي)", color:"#059669", category:"مخالفات الكتابة",
+    title:"تعهد بعدم العبث بورقة الإجابة ( الرصد الآلي )",
+    subTitle:"اختبار نهاية الفصل الدراسي الثاني للعام الدراسي ١٤٤٧هـ",
+    textTemplate: ()=>`بعدم العبث في ورقة الاجابة والمحافظة عليها والكتابة في المكان المخصص للإجابة فقط. وأتعهد بعد تكرار ذلك، وللمدرسة الحق في تطبيق النظام المتبع للائحة الاختبارات وعلى ذلك أوقع.`,
+    hasStudentFields:true, hasStudentSig:true, hasMonitorSig:true, extraFields:[]
+  },
+];
+
 function renderMonitorPledge(el) {
+  const categories = [...new Set(PLEDGE_FORMS.map(f=>f.category))];
+  const catColors = {"إقرارات":"#64748B","مخالفات الغش":"#DC2626","مخالفات الكتابة":"#7C3AED","غياب":"#D97706","غياب وتأخر":"#C2410C"};
+
   el.innerHTML = `
   <div class="page-wrap">
     <div class="card">
-      <p class="card-title">📋 التعهدات الإلكترونية</p>
-      <p style="font-size:12px;color:var(--muted);margin-bottom:16px">اختر نوع التعهد، أكمل البيانات، ووقّع إلكترونياً ثم احفظه في تقاريرك</p>
+      <p class="card-title">📋 التعهدات الإلكترونية للطلاب</p>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:16px">اختر نموذج التعهد المناسب، أدخل بيانات الطالب، وقّع إلكترونياً ثم احفظه</p>
 
-      <!-- اختيار نوع التعهد -->
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
-        ${[
-          {key:"observer_pledge", icon:"✍️", label:"تعهد الملاحظ", color:"#3B82F6"},
-          {key:"monitor_pledge", icon:"📋", label:"تعهد مراقب اللجنة", color:"#8B5CF6"},
-          {key:"paper_integrity", icon:"🔒", label:"إقرار سلامة الأوراق", color:"#059669"},
-        ].map(t => `
-          <button onclick="showPledgeForm('${t.key}')" style="flex:1;min-width:120px;padding:14px 10px;border-radius:12px;border:2px solid ${t.color}30;background:${t.color}10;color:${t.color};font-weight:800;font-size:12px;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:6px;transition:all .2s" id="pledgeBtn_${t.key}">
-            <span style="font-size:22px">${t.icon}</span>
-            <span>${t.label}</span>
-          </button>
-        `).join("")}
-      </div>
+      ${categories.map(cat=>{
+        const forms = PLEDGE_FORMS.filter(f=>f.category===cat);
+        const catColor = catColors[cat]||"#64748B";
+        return `
+        <div style="margin-bottom:14px">
+          <p style="font-size:11px;font-weight:800;color:${catColor};background:${catColor}15;border-right:3px solid ${catColor};padding:5px 10px;border-radius:0 6px 6px 0;margin-bottom:8px">${cat}</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${forms.map(f=>`
+              <button onclick="showPledgeForm('${f.key}')" id="pledgeBtn_${f.key}"
+                style="flex:1;min-width:130px;max-width:200px;padding:10px 8px;border-radius:10px;border:2px solid ${f.color}30;background:${f.color}08;color:${f.color};font-weight:700;font-size:11px;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center">
+                <span style="font-size:18px">${f.icon}</span>
+                <span>${f.label}</span>
+              </button>
+            `).join("")}
+          </div>
+        </div>`;
+      }).join("")}
 
-      <div id="pledgeFormContainer"></div>
+      <div id="pledgeFormContainer" style="margin-top:4px"></div>
     </div>
   </div>`;
 }
 
 function showPledgeForm(pledgeType) {
-  const forms = {
-    observer_pledge: {
-      title: "تعهد الملاحظ",
-      icon: "✍️",
-      color: "#3B82F6",
-      text: `أتعهد أنا الموقّع أدناه بالالتزام التام بتعليمات الاختبار ولوائحه، وبالمحافظة على سرية الأسئلة، وعدم السماح بأي غش أو تواصل بين الطلاب، وإعداد ورقة الغياب بدقة، وتسليم أوراق الإجابة للمراقب كاملةً مرتبةً بعد انتهاء وقت الاختبار.`,
-      fields: [
-        {id:"pf_name", label:"اسم الملاحظ", placeholder:"الاسم الكامل"},
-        {id:"pf_subject", label:"المادة", type:"select", options:state.subjects},
-        {id:"pf_grade", label:"الصف", type:"select", options:state.grades},
-        {id:"pf_hall", label:"رقم القاعة", placeholder:"مثال: قاعة 1"},
-        {id:"pf_date", label:"التاريخ", type:"date"},
-      ]
-    },
-    monitor_pledge: {
-      title: "تعهد مراقب اللجنة",
-      icon: "📋",
-      color: "#8B5CF6",
-      text: `أتعهد أنا مراقب اللجان الموقّع أدناه بمتابعة سير الاختبارات في اللجان المسندة إليّ، والتحقق من هوية الطلاب، واستلام أوراق الإجابة من الملاحظين وعدّها بدقة، والتأكد من سلامتها وختمها، وتسليمها للكنترول فوراً مع الإبلاغ الفوري عن أي مخالفة أو حادثة.`,
-      fields: [
-        {id:"pf_name", label:"اسم مراقب اللجان", placeholder:"الاسم الكامل"},
-        {id:"pf_grade", label:"الصف", type:"select", options:state.grades},
-        {id:"pf_hall", label:"اللجان المسندة", placeholder:"مثال: قاعة 1، 2، 3"},
-        {id:"pf_date", label:"التاريخ", type:"date"},
-        {id:"pf_period", label:"فترة الاختبار", placeholder:"مثال: الدور الأول 1446هـ"},
-      ]
-    },
-    paper_integrity: {
-      title: "إقرار سلامة الأوراق",
-      icon: "🔒",
-      color: "#059669",
-      text: `أُقرّ بأنني استلمت أوراق الإجابة من الملاحظ وقمت بعدّها والتحقق من سلامتها، وأن العدد المذكور أدناه مطابق للعدد الفعلي، وأن الأوراق سليمة وغير منقوصة وخالية من أي تلاعب، وأتعهد بتسليمها للكنترول في الحال.`,
-      fields: [
-        {id:"pf_name", label:"اسم مراقب اللجان", placeholder:"الاسم الكامل"},
-        {id:"pf_subject", label:"المادة", type:"select", options:state.subjects},
-        {id:"pf_grade", label:"الصف", type:"select", options:state.grades},
-        {id:"pf_hall", label:"رقم القاعة", placeholder:"مثال: قاعة 1"},
-        {id:"pf_date", label:"التاريخ", type:"date"},
-        {id:"pf_qcount", label:"عدد أوراق الأسئلة", placeholder:"0", type:"number"},
-        {id:"pf_acount", label:"عدد أوراق الإجابة", placeholder:"0", type:"number"},
-      ]
-    }
-  };
-
-  const f = forms[pledgeType];
+  const f = PLEDGE_FORMS.find(x=>x.key===pledgeType);
   if(!f) return;
 
-  // تحديد لون الزر المحدد
-  ["observer_pledge","monitor_pledge","paper_integrity"].forEach(k => {
-    const btn = document.getElementById("pledgeBtn_"+k);
-    if(btn) btn.style.borderWidth = k===pledgeType ? "2px" : "2px";
+  // إبراز الزر المحدد
+  PLEDGE_FORMS.forEach(x=>{
+    const btn = document.getElementById("pledgeBtn_"+x.key);
+    if(btn) { btn.style.background=x.key===pledgeType?x.color+"25":x.color+"08"; btn.style.borderColor=x.key===pledgeType?x.color:x.color+"30"; }
   });
 
-  const fieldsHtml = f.fields.map(field => {
-    if(field.type === "select") {
-      return `<div><label class="lbl">${field.label}</label>
-        <select class="inp" id="${field.id}">
-          <option value="">-- اختر --</option>
-          ${(field.options||[]).map(o=>`<option>${o}</option>`).join("")}
-        </select></div>`;
-    } else if(field.type === "date") {
-      return `<div><label class="lbl">${field.label}</label>
-        <input class="inp" id="${field.id}" type="date" value="${new Date().toISOString().slice(0,10)}"/></div>`;
-    } else if(field.type === "number") {
-      return `<div><label class="lbl">${field.label}</label>
-        <input class="inp" id="${field.id}" type="number" min="0" placeholder="${field.placeholder||""}"/></div>`;
-    }
-    return `<div><label class="lbl">${field.label}</label>
-      <input class="inp" id="${field.id}" placeholder="${field.placeholder||""}"/></div>`;
-  });
+  const today = new Date().toISOString().slice(0,10);
+  const subjectOptions = state.subjects.map(s=>`<option>${s}</option>`).join("");
+  const gradeOptions = state.grades.map(g=>`<option>${g}</option>`).join("");
+
+  const buildField = field => {
+    if(field.type==="teacher_select") return `<div><label class="lbl">${field.label}</label><select class="inp" id="${field.id}">${teacherOptions()}</select></div>`;
+    if(field.type==="select") return `<div><label class="lbl">${field.label}</label><select class="inp" id="${field.id}"><option value="">-- اختر --</option>${(field.options||[]).map(o=>`<option>${o}</option>`).join("")}</select></div>`;
+    if(field.type==="textarea") return `<div style="grid-column:1/-1"><label class="lbl">${field.label}</label><textarea class="inp" id="${field.id}" rows="2" placeholder="${field.placeholder||""}" style="resize:vertical"></textarea></div>`;
+    if(field.type==="date") return `<div><label class="lbl">${field.label}</label>${hijriPicker(field.id)}</div>`;
+    if(field.type==="time") return `<div><label class="lbl">${field.label}</label><input class="inp" id="${field.id}" type="time"/></div>`;
+    if(field.type==="number") return `<div><label class="lbl">${field.label}</label><input class="inp" id="${field.id}" type="number" min="0" placeholder="${field.placeholder||"0"}"/></div>`;
+    return `<div><label class="lbl">${field.label}</label><input class="inp" id="${field.id}" placeholder="${field.placeholder||""}"/></div>`;
+  };
 
   document.getElementById("pledgeFormContainer").innerHTML = `
-    <div style="background:linear-gradient(135deg,${f.color}08,${f.color}15);border:2px solid ${f.color}30;border-radius:14px;padding:18px">
-      <p style="font-weight:900;color:${f.color};font-size:15px;margin-bottom:14px">${f.icon} ${f.title}</p>
+    <div style="background:${f.color}08;border:2px solid ${f.color}40;border-radius:14px;padding:18px;margin-top:8px">
+      <p style="font-weight:900;color:${f.color};font-size:15px;margin-bottom:4px">${f.icon} ${f.title}</p>
+      ${f.subTitle?`<p style="font-size:11px;color:var(--muted);margin-bottom:14px">${f.subTitle}</p>`:""}
+
+      <!-- بيانات الطالب -->
+      <p style="font-size:12px;font-weight:800;color:var(--navy);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border)">📌 بيانات الطالب</p>
+      <div class="g2" style="margin-bottom:10px">
+        <div><label class="lbl">اسم الطالب *</label><input class="inp" id="st_name" placeholder="الاسم الكامل"/></div>
+        <div><label class="lbl">السجل المدني</label><input class="inp" id="st_civil" placeholder="رقم السجل المدني" dir="ltr"/></div>
+        <div><label class="lbl">رقم الجلوس</label><input class="inp" id="st_seat" placeholder="رقم الجلوس"/></div>
+        <div><label class="lbl">الصف</label><select class="inp" id="st_grade"><option value="">-- اختر --</option>${gradeOptions}</select></div>
+        ${f.hasMaterial||!f.extraFields.find(x=>x.id==="subject")?`<div><label class="lbl">المادة</label><select class="inp" id="subject"><option value="">-- اختر --</option>${subjectOptions}</select></div>`:""}
+        <div><label class="lbl">التاريخ</label>${hijriPicker("st_date")}</div>
+      </div>
+
+      <!-- الحقول الإضافية -->
+      ${f.extraFields && f.extraFields.length ? `
+      <p style="font-size:12px;font-weight:800;color:var(--navy);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border)">📋 تفاصيل النموذج</p>
+      <div class="g2" style="margin-bottom:10px">${f.extraFields.map(buildField).join("")}</div>` : ""}
 
       <!-- نص التعهد -->
-      <div style="background:#fff;border-right:4px solid ${f.color};border-radius:8px;padding:14px;margin-bottom:16px;font-size:13px;line-height:1.8;color:var(--dark)">
-        <p style="font-weight:700;margin-bottom:6px">نص التعهد:</p>
-        <p>${f.text}</p>
-      </div>
+      ${f.textTemplate?`
+      <div style="background:#fff;border-right:4px solid ${f.color};border-radius:8px;padding:14px;margin-bottom:16px;font-size:13px;line-height:1.9;color:var(--dark)">
+        <p style="font-weight:700;color:${f.color};margin-bottom:6px">نص التعهد / الإقرار:</p>
+        <p id="pledgeTextPreview">أتعهد أنا الطالب / ${f.title}</p>
+      </div>`:""}
 
-      <!-- الحقول -->
-      <div class="g2" style="margin-bottom:10px">
-        ${fieldsHtml.join("")}
+      <!-- توقيع الطالب -->
+      ${f.hasStudentSig?`
+      <p style="font-size:12px;font-weight:800;color:var(--navy);margin-bottom:8px">✍️ توقيع الطالب الإلكتروني *</p>
+      <div style="border:2px dashed ${f.color};border-radius:10px;overflow:hidden;background:#fff;touch-action:none;margin-bottom:6px">
+        <canvas id="sigStudent" width="600" height="110" style="width:100%;height:110px;cursor:crosshair;display:block"></canvas>
       </div>
+      <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center">
+        <button class="btn btn-outline btn-sm" onclick="clearSigCanvas('sigStudent')">🗑️ مسح</button>
+        <span style="font-size:11px;color:var(--muted)">توقيع الطالب بإصبعه أو الماوس</span>
+      </div>`:""}
 
-      <!-- التوقيع الإلكتروني -->
-      <div style="margin-top:14px;margin-bottom:14px">
-        <label class="lbl">التوقيع الإلكتروني *</label>
-        <div style="border:2px dashed ${f.color};border-radius:10px;overflow:hidden;background:#fff;touch-action:none">
-          <canvas id="sigCanvasPledge" width="600" height="140" style="width:100%;height:140px;cursor:crosshair;display:block"></canvas>
+      <!-- توقيع المراقب -->
+      ${f.hasMonitorSig?`
+      <p style="font-size:12px;font-weight:800;color:var(--navy);margin-bottom:4px">👁 توقيع مراقب اللجنة</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div><label class="lbl">اسم مراقب اللجنة</label><input class="inp" id="monitor_name" value="${currentUser.name}" placeholder="اسم المراقب"/></div>
+        <div><label class="lbl">&nbsp;</label>
+          <div style="border:2px dashed #64748B;border-radius:8px;overflow:hidden;background:#fff;touch-action:none">
+            <canvas id="sigMonitor" width="300" height="70" style="width:100%;height:70px;cursor:crosshair;display:block"></canvas>
+          </div>
         </div>
-        <div style="display:flex;gap:8px;margin-top:6px;align-items:center">
-          <button class="btn btn-outline btn-sm" onclick="clearSigCanvas('sigCanvasPledge')">🗑️ مسح التوقيع</button>
-          <span style="font-size:11px;color:var(--muted)">وقّع بإصبعك أو الماوس في المربع أعلاه</span>
-        </div>
       </div>
+      <div style="margin-bottom:14px">
+        <button class="btn btn-outline btn-sm" onclick="clearSigCanvas('sigMonitor')">🗑️ مسح توقيع المراقب</button>
+      </div>`:""}
 
-      <button class="btn btn-full" style="background:linear-gradient(135deg,${f.color},${f.color}cc);color:#fff;font-size:14px;font-weight:800"
-        onclick="saveMonitorPledge('${pledgeType}','${f.title}')">
-        💾 حفظ التعهد بتوقيعه الإلكتروني
+      <button class="btn btn-full" style="background:linear-gradient(135deg,${f.color},${f.color}bb);color:#fff;font-size:14px;font-weight:800;padding:13px"
+        onclick="saveMonitorPledge('${pledgeType}')">
+        💾 حفظ النموذج بالتوقيع الإلكتروني
       </button>
     </div>`;
 
-  initSigCanvas("sigCanvasPledge");
+  if(f.hasStudentSig) initSigCanvas("sigStudent");
+  if(f.hasMonitorSig) initSigCanvas("sigMonitor");
+  document.getElementById("pledgeFormContainer").scrollIntoView({behavior:"smooth",block:"start"});
 }
 
-function saveMonitorPledge(pledgeType, pledgeTitle) {
-  const nameEl = document.getElementById("pf_name");
-  const dateEl = document.getElementById("pf_date");
-  if(!nameEl || !nameEl.value.trim()) { toast("أدخل الاسم أولاً","err"); return; }
-  const canvas = document.getElementById("sigCanvasPledge");
-  const sig = canvas ? canvas.toDataURL() : "";
-  const ctx = canvas ? canvas.getContext("2d") : null;
-  const isBlank = ctx ? !ctx.getImageData(0,0,canvas.width,canvas.height).data.some(x=>x!==0) : false;
-  if(isBlank) { toast("الرجاء إضافة التوقيع الإلكتروني","err"); return; }
+function saveMonitorPledge(pledgeType) {
+  const f = PLEDGE_FORMS.find(x=>x.key===pledgeType);
+  if(!f) return;
+  const stName = (document.getElementById("st_name")||{}).value||"";
+  if(!stName.trim()) { toast("أدخل اسم الطالب أولاً","err"); return; }
 
+  if(f.hasStudentSig) {
+    const sc = document.getElementById("sigStudent");
+    if(sc){const ctx=sc.getContext("2d");if(!ctx.getImageData(0,0,sc.width,sc.height).data.some(x=>x!==0)){toast("الرجاء إضافة توقيع الطالب","err");return;}}
+  }
+
+  // جمع البيانات
+  const allIds = ["st_name","st_civil","st_seat","st_grade","subject","st_text","st_violation","st_vtype","st_semester","st_vrep","st_observer_name","st_observer1","st_observer2","st_supervisor","st_paragraphs","st_deducted","st_teacher","st_arrtime","st_starttime","st_delay_reason","st_delay_rep","st_decision","st_reason","monitor_name"];
   const data = {};
-  ["pf_name","pf_subject","pf_grade","pf_hall","pf_date","pf_period","pf_qcount","pf_acount"].forEach(id => {
-    const el = document.getElementById(id);
-    if(el) data[id] = el.value;
-  });
+  allIds.forEach(id=>{ const el=document.getElementById(id); if(el) data[id]=el.value; });
+  data.st_date = hijriVal("st_date");
 
-  if(!state.monitorReports) state.monitorReports = [];
+  const sigStudent = f.hasStudentSig ? (document.getElementById("sigStudent")||{}).toDataURL?.() || "" : "";
+  const sigMonitor = f.hasMonitorSig ? (document.getElementById("sigMonitor")||{}).toDataURL?.() || "" : "";
+
+  if(!state.monitorReports) state.monitorReports=[];
   state.monitorReports.push({
-    id:uid(), type:pledgeType, pledgeTitle:pledgeTitle,
-    monitorName:data.pf_name||currentUser.name,
-    subject:data.pf_subject||"", grade:data.pf_grade||"", hall:data.pf_hall||"",
-    date:data.pf_date||"", period:data.pf_period||"",
-    qCount:parseInt(data.pf_qcount)||0, aCount:parseInt(data.pf_acount)||0,
-    sig:sig, savedAt:nowISO()
+    id:uid(), type:pledgeType, pledgeTitle:f.title,
+    studentName:data.st_name||"", studentCivil:data.st_civil||"", studentSeat:data.st_seat||"",
+    grade:data.st_grade||"", subject:data.subject||"", date:data.st_date||"",
+    monitorName:data.monitor_name||currentUser.name,
+    extraData:data, sigStudent:sigStudent, sigMonitor:sigMonitor,
+    savedAt:nowISO()
   });
   saveState(); saveToCloud();
-  toast("✅ تم حفظ التعهد بتوقيعه الإلكتروني");
-  renderMonitorReports(document.getElementById("pageContent"));
+  toast("✅ تم حفظ النموذج بالتوقيعات الإلكترونية");
   navigateTo("monitor_reports");
 }
 
@@ -4103,33 +4275,25 @@ function renderMonitorReports(el) {
   <div class="page-wrap">
     <div class="card">
       <p class="card-title">🗂 تقارير المراقب المحفوظة (${reports.length})</p>
-      ${reports.length === 0 ? `<p class="empty">لا توجد تقارير محفوظة — أنشئ تعهداً أو محضر استلام أولاً</p>` :
+      ${reports.length === 0 ? `<p class="empty">لا توجد تقارير محفوظة — انتقل إلى التعهدات لإنشاء نموذج جديد</p>` :
         [...reports].reverse().map(r => {
-          const typeLabels = {
-            observer_pledge:"تعهد الملاحظ", monitor_pledge:"تعهد مراقب اللجنة",
-            paper_integrity:"إقرار سلامة الأوراق", papers:"محضر استلام الأوراق"
-          };
-          const typeColors = {
-            observer_pledge:"#3B82F6", monitor_pledge:"#8B5CF6",
-            paper_integrity:"#059669", papers:"#F59E0B"
-          };
-          const color = typeColors[r.type]||"#64748b";
-          const label = r.pledgeTitle || typeLabels[r.type] || r.type;
+          const pf = PLEDGE_FORMS.find(x=>x.key===r.type);
+          const color = pf ? pf.color : (r.type==="papers"?"#F59E0B":"#64748b");
+          const icon = pf ? pf.icon : (r.type==="papers"?"📄":"📋");
+          const label = r.pledgeTitle || (pf?pf.label:r.type);
+          const stName = r.studentName || r.monitorName || "—";
           return `
-          <div style="background:var(--bg);border-radius:12px;padding:14px 16px;margin-bottom:10px;border:1px solid var(--border);border-right:4px solid ${color}">
-            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-              <div style="width:42px;height:42px;background:${color}20;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;color:${color};font-weight:900;border:1px solid ${color}40">
-                ${r.type==="papers"?"📄":r.type==="observer_pledge"?"✍️":r.type==="monitor_pledge"?"📋":"🔒"}
-              </div>
-              <div style="flex:1;min-width:140px">
+          <div style="background:var(--bg);border-radius:12px;padding:13px 16px;margin-bottom:8px;border:1px solid var(--border);border-right:4px solid ${color}">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <div style="width:40px;height:40px;background:${color}18;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;border:1px solid ${color}30">${icon}</div>
+              <div style="flex:1;min-width:130px">
                 <p style="font-weight:800;color:var(--navy);font-size:13px;margin-bottom:2px">${label}</p>
-                <p style="font-size:11px;color:var(--muted)">${r.monitorName||"—"} ${r.subject?" · "+r.subject:""} ${r.grade?" · "+r.grade:""} ${r.hall?" · "+r.hall:""}</p>
-                ${r.type==="papers"?`<p style="font-size:11px;color:var(--muted)">أسئلة: ${r.qCount||0} · إجابات: ${r.aCount||0} · ${r.status||""}</p>`:""}
-                <p style="font-size:10px;color:var(--faint)">${fmt(r.savedAt)}</p>
+                <p style="font-size:11px;color:var(--muted)">الطالب: ${stName}${r.grade?" · "+r.grade:""}${r.subject?" · "+r.subject:""}</p>
+                <p style="font-size:10px;color:var(--faint)">المراقب: ${r.monitorName||"—"} · ${fmt(r.savedAt)}</p>
               </div>
-              ${r.sig ? `<img src="${r.sig}" style="height:40px;border:1px solid var(--border);border-radius:6px;object-fit:contain;background:#fff"/>` : ""}
+              ${r.sigStudent ? `<img src="${r.sigStudent}" style="height:36px;border:1px solid var(--border);border-radius:5px;object-fit:contain;background:#fff" title="توقيع الطالب"/>` : ""}
               <div style="display:flex;gap:6px;flex-wrap:wrap">
-                <button class="btn btn-navy btn-sm" onclick="printMonitorReport('${r.id}')">🖨️ طباعة PDF</button>
+                <button class="btn btn-navy btn-sm" onclick="printMonitorReport('${r.id}')">🖨️ PDF</button>
                 <button class="btn btn-outline btn-sm" style="color:var(--red);border-color:var(--red)" onclick="deleteMonitorReport('${r.id}')">✕</button>
               </div>
             </div>
@@ -4151,38 +4315,50 @@ function printMonitorReport(id) {
   const r = (state.monitorReports||[]).find(x=>x.id===id);
   if(!r) { toast("التقرير غير موجود","err"); return; }
 
-  const typeLabels = {
-    observer_pledge:"تعهد الملاحظ", monitor_pledge:"تعهد مراقب اللجنة",
-    paper_integrity:"إقرار سلامة الأوراق", papers:"محضر استلام الأوراق"
-  };
-  const pledgeTexts = {
-    observer_pledge: "أتعهد أنا الموقّع أدناه بالالتزام التام بتعليمات الاختبار ولوائحه، وبالمحافظة على سرية الأسئلة، وعدم السماح بأي غش أو تواصل بين الطلاب، وإعداد ورقة الغياب بدقة، وتسليم أوراق الإجابة للمراقب كاملةً مرتبةً بعد انتهاء وقت الاختبار.",
-    monitor_pledge:  "أتعهد أنا مراقب اللجان الموقّع أدناه بمتابعة سير الاختبارات في اللجان المسندة إليّ، والتحقق من هوية الطلاب، واستلام أوراق الإجابة من الملاحظين وعدّها بدقة، والتأكد من سلامتها وختمها، وتسليمها للكنترول فوراً مع الإبلاغ الفوري عن أي مخالفة أو حادثة.",
-    paper_integrity: "أُقرّ بأنني استلمت أوراق الإجابة من الملاحظ وقمت بعدّها والتحقق من سلامتها، وأن العدد المذكور أدناه مطابق للعدد الفعلي، وأن الأوراق سليمة وغير منقوصة وخالية من أي تلاعب، وأتعهد بتسليمها للكنترول في الحال.",
-  };
+  const pf = PLEDGE_FORMS.find(x=>x.key===r.type);
+  const title = r.pledgeTitle || (pf?pf.title:"تقرير مراقب اللجان");
+  const subTitle = pf && pf.subTitle ? pf.subTitle : "اختبار نهاية الفصل الدراسي الثاني للعام الدراسي ١٤٤٧هـ";
+  const color = pf ? pf.color : "#0D1F3C";
+  const printDate = new Date(r.savedAt).toLocaleDateString("ar-SA-u-ca-islamic-umalqura",{year:"numeric",month:"long",day:"numeric"});
+  const d = r.extraData || {};
 
-  const title = r.pledgeTitle || typeLabels[r.type] || "تقرير مراقب اللجان";
-  const isPapers = r.type === "papers";
-  const pledgeText = pledgeTexts[r.type] || "";
-  const printDate = new Date(r.savedAt).toLocaleDateString("ar-SA", {year:"numeric",month:"long",day:"numeric"});
-  const sigHtml = r.sig
-    ? `<img src="${r.sig}" style="max-width:200px;max-height:80px;border:1px solid #ddd;border-radius:6px;display:block"/>`
-    : `<div style="width:200px;height:60px;border-bottom:2px solid #333"></div>`;
+  // بناء نص التعهد
+  let pledgeText = "";
+  if(pf && pf.textTemplate) {
+    try { pledgeText = pf.textTemplate({...d, subject:r.subject||d.subject, grade:r.grade||d.grade}); } catch(e){}
+  }
 
-  const detailRows = [
-    r.monitorName ? ["الاسم",r.monitorName] : null,
-    r.subject ? ["المادة",r.subject] : null,
-    r.grade ? ["الصف",r.grade] : null,
-    r.hall ? [isPapers?"القاعة":"اللجان المسندة", r.hall] : null,
-    r.date ? ["التاريخ",r.date] : null,
-    r.period ? ["فترة الاختبار",r.period] : null,
-    isPapers && r.observer ? ["اسم الملاحظ",r.observer] : null,
-    isPapers && r.students ? ["عدد الطلاب الحاضرين",r.students] : null,
-    isPapers ? ["عدد أوراق الأسئلة",r.qCount||0] : null,
-    isPapers ? ["عدد أوراق الإجابة",r.aCount||0] : null,
-    isPapers && r.status ? ["حالة الأوراق",r.status] : null,
-    r.notes ? ["ملاحظات",r.notes] : null,
+  // بيانات الطالب
+  const studentRows = [
+    r.studentName ? ["اسم الطالب", r.studentName] : null,
+    r.studentCivil ? ["السجل المدني", r.studentCivil] : null,
+    r.studentSeat ? ["رقم الجلوس", r.studentSeat] : null,
+    r.grade ? ["الصف", r.grade] : null,
+    r.subject ? ["المادة", r.subject] : null,
+    r.date ? ["التاريخ", inputDateToHijri(r.date)] : null,
   ].filter(Boolean);
+
+  // بيانات إضافية حسب النموذج
+  const extraRows = [];
+  if(pf) pf.extraFields.forEach(ef=>{
+    if(d[ef.id]) extraRows.push([ef.label, d[ef.id]]);
+  });
+  // محضر الاستلام القديم
+  if(r.type==="papers") {
+    if(r.observer) extraRows.push(["اسم الملاحظ",r.observer]);
+    if(r.students) extraRows.push(["عدد الطلاب الحاضرين",r.students]);
+    extraRows.push(["عدد أوراق الأسئلة",r.qCount||0]);
+    extraRows.push(["عدد أوراق الإجابة",r.aCount||0]);
+    if(r.status) extraRows.push(["حالة الأوراق",r.status]);
+    if(r.notes) extraRows.push(["ملاحظات",r.notes]);
+  }
+
+  const sigStHtml = r.sigStudent
+    ? `<img src="${r.sigStudent}" style="max-width:180px;max-height:70px;display:block;margin:auto;border:1px solid #ddd;border-radius:4px"/>`
+    : `<div style="width:160px;height:55px;border-bottom:1.5px solid #333;margin:auto"></div>`;
+  const sigMonHtml = r.sigMonitor
+    ? `<img src="${r.sigMonitor}" style="max-width:180px;max-height:70px;display:block;margin:auto;border:1px solid #ddd;border-radius:4px"/>`
+    : (r.sig ? `<img src="${r.sig}" style="max-width:180px;max-height:70px;display:block;margin:auto;border:1px solid #ddd;border-radius:4px"/>` : `<div style="width:160px;height:55px;border-bottom:1.5px solid #333;margin:auto"></div>`);
 
   const win = window.open("","_blank","width=900,height=700");
   win.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/>
@@ -4190,57 +4366,104 @@ function printMonitorReport(id) {
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet"/>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Tajawal',Arial,sans-serif;direction:rtl;padding:30px 40px;color:#0D1F3C;font-size:14px}
-    .header{display:flex;align-items:center;gap:18px;padding-bottom:16px;border-bottom:3px solid #0D1F3C;margin-bottom:20px}
-    h1{font-size:20px;font-weight:900;margin-bottom:4px}
-    .subtitle{font-size:12px;color:#64748b}
-    .pledge-box{background:#f8fafc;border-right:4px solid #0D1F3C;border-radius:6px;padding:14px 18px;margin-bottom:20px;font-size:13px;line-height:1.9;color:#334155}
-    .details-table{width:100%;border-collapse:collapse;margin-bottom:24px}
-    .details-table td{padding:9px 12px;border:1px solid #e2e8f0;font-size:13px}
-    .details-table td:first-child{font-weight:800;background:#f1f5f9;width:35%;color:#0D1F3C}
-    .sig-section{margin-top:20px;display:flex;justify-content:flex-end}
-    .sig-box{text-align:center;padding:14px;border:1px solid #e2e8f0;border-radius:8px;min-width:220px}
-    .sig-box p{font-size:11px;color:#64748b;margin-top:8px}
-    .footer{margin-top:24px;padding-top:12px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10px;color:#94a3b8}
-    .no-print{margin-top:20px;display:flex;gap:10px}
-    @media print{.no-print{display:none}body{padding:16px 20px}}
+    body{font-family:'Tajawal',Arial,sans-serif;direction:rtl;padding:28px 36px;color:#0D1F3C;font-size:13px;line-height:1.6}
+    .header{display:flex;align-items:center;gap:16px;padding-bottom:14px;border-bottom:3px solid ${color};margin-bottom:18px}
+    h1{font-size:19px;font-weight:900;margin-bottom:3px}
+    .sub{font-size:11px;color:#64748b}
+    .main-title{text-align:center;font-size:17px;font-weight:900;margin:0 0 6px;color:${color};text-decoration:underline}
+    .sub-title{text-align:center;font-size:12px;color:#64748b;margin-bottom:16px}
+    .pledge-box{background:#f8fafc;border-right:4px solid ${color};border-radius:6px;padding:12px 16px;margin:14px 0;font-size:13px;line-height:2;color:#334155}
+    table.dt{width:100%;border-collapse:collapse;margin-bottom:14px}
+    table.dt td{padding:8px 11px;border:1px solid #e2e8f0;font-size:12px}
+    table.dt td:first-child{font-weight:800;background:#f8fafc;width:32%;color:#0D1F3C}
+    .sig-row{display:flex;gap:16px;justify-content:space-between;margin-top:18px;flex-wrap:wrap}
+    .sig-box{flex:1;min-width:160px;text-align:center;padding:12px;border:1px solid #e2e8f0;border-radius:8px}
+    .sig-box .lbl{font-size:12px;font-weight:800;margin-bottom:6px;color:#0D1F3C}
+    .sig-box .name{font-size:11px;color:#64748b;margin-top:6px}
+    .footer{margin-top:20px;padding-top:10px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10px;color:#94a3b8}
+    .no-print{margin-top:16px;display:flex;gap:8px}
+    @media print{.no-print{display:none}body{padding:14px 18px}}
   </style></head><body>
   <div class="header">
-    <img src="${LOGO_SRC}" alt="شعار" style="width:90px;height:90px;object-fit:contain;flex-shrink:0"/>
-    <div>
-      <h1>${state.schoolName}</h1>
-      <p class="subtitle">${title} — ${printDate}</p>
-    </div>
-    <div style="margin-right:auto;background:#0D1F3C;color:#fff;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700">مراقب اللجان</div>
+    <img src="${LOGO_SRC}" alt="" style="width:80px;height:80px;object-fit:contain;flex-shrink:0"/>
+    <div style="flex:1"><h1>${state.schoolName}</h1><p class="sub">مديرية التربية والتعليم</p></div>
   </div>
 
-  ${pledgeText ? `<div class="pledge-box"><strong>نص التعهد:</strong><br/>${pledgeText}</div>` : ""}
+  <p class="main-title">${title}</p>
+  <p class="sub-title">${subTitle}</p>
 
-  <table class="details-table">
-    ${detailRows.map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join("")}
+  <!-- بيانات الطالب -->
+  <table class="dt">
+    <tr style="background:${color};color:#fff">
+      ${studentRows.map(([k])=>`<th style="padding:7px 11px;text-align:right;font-weight:800">${k}</th>`).join("")}
+    </tr>
+    <tr>
+      ${studentRows.map(([,v])=>`<td style="font-weight:700">${v}</td>`).join("")}
+    </tr>
   </table>
 
-  <div class="sig-section">
+  ${extraRows.length?`
+  <table class="dt">
+    ${extraRows.map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join("")}
+  </table>`:""}
+
+  ${pledgeText?`
+  <div class="pledge-box">
+    <strong>أتعهد أنا الطالب / ${r.studentName||"..."}</strong><br/>
+    ${pledgeText}
+  </div>`:""}
+
+  <!-- التوقيعات -->
+  <div class="sig-row">
+    ${pf && pf.hasStudentSig ? `
     <div class="sig-box">
-      <p style="font-weight:800;font-size:12px;margin-bottom:8px;color:#0D1F3C">توقيع مراقب اللجان</p>
-      ${sigHtml}
-      <p>${r.monitorName||"—"}</p>
-      <p>${r.date||""}</p>
-    </div>
+      <p class="lbl">توقيع الطالب</p>
+      ${sigStHtml}
+      <p class="name">${r.studentName||"—"}</p>
+      <p class="name">${inputDateToHijri(r.date)||""}</p>
+    </div>` : ""}
+    ${pf && pf.hasMonitorSig ? `
+    <div class="sig-box" style="border-color:${color}">
+      <p class="lbl" style="color:${color}">مراقب اللجنة</p>
+      ${sigMonHtml}
+      <p class="name">${r.monitorName||"—"}</p>
+    </div>` : ""}
+    ${d.st_observer_name ? `
+    <div class="sig-box">
+      <p class="lbl">ملاحظ اللجنة</p>
+      <div style="height:55px;border-bottom:1.5px solid #333;margin:auto;width:80%"></div>
+      <p class="name">${d.st_observer_name}</p>
+    </div>` : ""}
+    ${d.st_observer1 ? `
+    <div class="sig-box">
+      <p class="lbl">الملاحظ الأول</p>
+      <div style="height:40px;border-bottom:1.5px solid #333;margin:auto;width:80%"></div>
+      <p class="name">${d.st_observer1}</p>
+    </div>` : ""}
+    ${d.st_supervisor ? `
+    <div class="sig-box">
+      <p class="lbl">المسؤول عن لجنة التحكم والضبط</p>
+      <div style="height:40px;border-bottom:1.5px solid #333;margin:auto;width:80%"></div>
+      <p class="name">${d.st_supervisor}</p>
+    </div>` : ""}
+  </div>
+
+  <div style="margin-top:18px;font-size:11px;color:#64748b">
+    <p>مدير المدرسة ورئيس لجنة الاختبارات</p>
+    <p style="margin-top:2px;font-weight:700">محمد بن طراد الرفدي</p>
   </div>
 
   <div class="footer">
     <span>${state.schoolName} — نظام متابعة الاختبارات الإلكتروني</span>
-    <span>طُبع: ${new Date().toLocaleDateString("ar-SA")}</span>
+    <span>طُبع: ${new Date().toLocaleDateString("ar-SA-u-ca-islamic-umalqura")} · المراقب: ${r.monitorName||"—"}</span>
   </div>
-
   <div class="no-print">
-    <button onclick="window.print()" style="padding:9px 22px;background:#0D1F3C;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;font-weight:700">🖨️ طباعة / PDF</button>
+    <button onclick="window.print()" style="padding:9px 22px;background:${color};color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;font-weight:700">🖨️ طباعة / PDF</button>
     <button onclick="window.close()" style="padding:9px 16px;background:#64748b;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit">إغلاق</button>
   </div>
   </body></html>`);
   win.document.close();
-  toast("تم فتح التقرير للطباعة ✅");
+  toast("تم فتح النموذج للطباعة ✅");
 }
 
 // ─────────────────────────────────────────────
