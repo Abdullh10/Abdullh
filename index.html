@@ -2854,6 +2854,25 @@ function renderPrincipalDashboard(el) {
   const newB       = state.bundles.filter(b=>b.stage<0).length;
   const totalPapers= state.bundles.reduce((a,b)=>a+b.count,0);
 
+  // ── زر الداشبورد للشاشة الخارجية ────────────────
+  const dashBtn = `
+  <div style="margin-bottom:16px">
+    <button onclick="openExternalDashboard()"
+      style="display:flex;align-items:center;gap:10px;padding:13px 22px;
+             background:linear-gradient(135deg,#0B1D3A,#1D3561);
+             color:#fff;border:none;border-radius:12px;cursor:pointer;
+             font-family:'IBM Plex Sans Arabic',sans-serif;font-size:14px;
+             font-weight:700;box-shadow:0 4px 18px rgba(11,29,58,.35);
+             transition:all .2s;width:100%">
+      <span style="font-size:26px">📺</span>
+      <div style="text-align:right;flex:1">
+        <div>عرض الداشبورد على الشاشة الخارجية</div>
+        <div style="font-size:11px;font-weight:400;opacity:.75;margin-top:2px">مواد اليوم · سير الأوراق · يتحدث تلقائياً كل 30 ثانية</div>
+      </div>
+      <span style="font-size:20px;opacity:.7">↗</span>
+    </button>
+  </div>`;
+
   // Build subject map with full stage breakdown
   const subjectMap = {};
   state.bundles.forEach(b=>{
@@ -2878,6 +2897,7 @@ function renderPrincipalDashboard(el) {
   const recentLogs=allLogs.slice(0,5);
 
   el.innerHTML=`
+  ${dashBtn}
   <!-- KPIs -->
   <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px">
     <div class="kpi-card" style="border-top-color:#3B82F6">
@@ -4627,6 +4647,344 @@ function updateBell(){
 
 function refreshBellAfterLoad(){
   if(currentUser){renderNav();updateBell();}
+}
+
+
+// ═══════════════════════════════════════════════
+// EXTERNAL DASHBOARD — داشبورد الشاشة الخارجية
+// ═══════════════════════════════════════════════
+
+function openExternalDashboard() {
+  // Serialize current state to pass to new window
+  const payload = {
+    schoolName:    state.schoolName||"متابعة سير الاختبارات",
+    bundles:       state.bundles||[],
+    stages:        state.stages||[],
+    examSchedule:  state.examSchedule||[],
+    PALETTE:       PALETTE,
+    LOGO_SRC:      LOGO_SRC,
+  };
+
+  const win = window.open("","_blank","width=1920,height=1080");
+
+  // Build today's exams from bundles
+  const todayISO = new Date().toISOString().slice(0,10);
+  const todayBundles = (state.bundles||[]).filter(b=>b.examDate===todayISO);
+
+  // All bundles grouped by subject for progress
+  const subjectMap = {};
+  (state.bundles||[]).forEach(b=>{
+    if(!subjectMap[b.subject]) subjectMap[b.subject]={
+      subject:b.subject, bundles:[], stages:state.stages||[]
+    };
+    subjectMap[b.subject].bundles.push(b);
+  });
+
+  const STAGE_COLORS = ["#3B82F6","#8B5CF6","#06B6D4","#F59E0B","#EF4444","#10B981","#F97316","#22C55E"];
+  const sc2 = i => STAGE_COLORS[i % STAGE_COLORS.length];
+
+  // ── Today subjects cards ──────────────────────
+  const todayHtml = todayBundles.length===0
+    ? `<div style="display:flex;align-items:center;justify-content:center;height:100%;opacity:.4">
+         <div style="text-align:center">
+           <div style="font-size:64px;margin-bottom:12px">📅</div>
+           <div style="font-size:22px;font-weight:700">لا توجد اختبارات مجدولة اليوم</div>
+         </div>
+       </div>`
+    : todayBundles.map(b=>{
+        const stageIdx = b.stage;
+        const stageName = stageIdx<0?"لم تبدأ":((state.stages||[])[stageIdx]||"—");
+        const stagesLen = (state.stages||[]).length;
+        const pct = stagesLen>0?Math.max(0,Math.round(((stageIdx+1)/stagesLen)*100)):0;
+        const color = stageIdx<0?"#64748B":sc2(stageIdx);
+        const isDone = stageIdx===stagesLen-1;
+        return `
+        <div style="background:rgba(255,255,255,.07);border-radius:18px;padding:22px 24px;
+                    border:1.5px solid rgba(255,255,255,.12);margin-bottom:14px;
+                    border-right:5px solid ${color}">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px">
+            <div>
+              <div style="font-size:26px;font-weight:800;color:#fff;margin-bottom:4px">${b.subject}</div>
+              ${b.grade?`<div style="font-size:16px;color:rgba(255,255,255,.6);font-weight:600">${b.grade}</div>`:""}
+            </div>
+            <div style="text-align:center;flex-shrink:0">
+              ${isDone
+                ? `<div style="background:#10B981;border-radius:50%;width:52px;height:52px;display:flex;align-items:center;justify-content:center;font-size:26px">✅</div>`
+                : `<div style="font-size:28px;font-weight:900;color:${color}">${pct}%</div>`}
+            </div>
+          </div>
+          <!-- progress bar -->
+          <div style="background:rgba(255,255,255,.1);border-radius:99px;height:8px;margin-bottom:12px;overflow:hidden">
+            <div style="background:${color};height:100%;border-radius:99px;width:${pct}%;transition:width 1s ease"></div>
+          </div>
+          <!-- stage pills -->
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
+            ${(state.stages||[]).map((s,i)=>{
+              const active = i===stageIdx;
+              const passed = i<stageIdx;
+              const bg = (active||passed)?sc2(i):"rgba(255,255,255,.08)";
+              const txt = (active||passed)?"#fff":"rgba(255,255,255,.35)";
+              return `<span style="background:${bg};color:${txt};border-radius:99px;padding:4px 12px;font-size:13px;font-weight:${active?800:500}">${s}</span>`;
+            }).join("")}
+          </div>
+          <!-- meta -->
+          <div style="display:flex;gap:16px;font-size:14px;color:rgba(255,255,255,.55)">
+            <span>📄 ${b.count} ورقة</span>
+            ${b.examStart?`<span>🕐 ${b.examStart}${b.examEnd?" — "+b.examEnd:""}</span>`:""}
+            ${b.examHall?`<span>🏫 ${b.examHall}</span>`:""}
+            <span style="margin-right:auto;background:${color}22;color:${color};border:1px solid ${color}44;border-radius:8px;padding:2px 10px;font-weight:700">${stageName}</span>
+          </div>
+        </div>`;
+      }).join("");
+
+  // ── All subjects progress ──────────────────────
+  const allSubjectsHtml = Object.values(subjectMap).map(sm=>{
+    const bundles = sm.bundles;
+    const stagesLen = (state.stages||[]).length;
+    const totalPapers = bundles.reduce((a,b)=>a+b.count,0);
+    // pick latest stage among bundles
+    const maxStage = Math.max(...bundles.map(b=>b.stage));
+    const pct = stagesLen>0?Math.max(0,Math.round(((maxStage+1)/stagesLen)*100)):0;
+    const color = maxStage<0?"#64748B":sc2(maxStage);
+    const isDone = bundles.every(b=>b.stage===stagesLen-1);
+    const stageName = maxStage<0?"لم تبدأ":((state.stages||[])[maxStage]||"—");
+
+    return `
+    <div style="background:rgba(255,255,255,.06);border-radius:14px;padding:16px 18px;
+                border:1px solid rgba(255,255,255,.08);margin-bottom:10px;
+                border-right:4px solid ${color}">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:18px;font-weight:800;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sm.subject}</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.45)">${bundles.length} مظروف · ${totalPapers} ورقة</div>
+        </div>
+        <div style="flex-shrink:0">
+          ${isDone
+            ? `<span style="background:#10B981;color:#fff;border-radius:8px;padding:4px 12px;font-size:12px;font-weight:700">✅ مكتمل</span>`
+            : `<span style="background:${color}22;color:${color};border:1px solid ${color}55;border-radius:8px;padding:4px 12px;font-size:12px;font-weight:700">${stageName}</span>`}
+        </div>
+      </div>
+      <!-- mini progress -->
+      <div style="background:rgba(255,255,255,.08);border-radius:99px;height:6px;overflow:hidden">
+        <div style="background:${color};height:100%;border-radius:99px;width:${pct}%"></div>
+      </div>
+      <!-- mini stage dots -->
+      <div style="display:flex;gap:4px;margin-top:8px">
+        ${(state.stages||[]).map((s,i)=>{
+          const filled = i<=maxStage;
+          return `<div title="${s}" style="flex:1;height:4px;border-radius:2px;background:${filled?sc2(i):"rgba(255,255,255,.1)"}"></div>`;
+        }).join("")}
+      </div>
+    </div>`;
+  }).join("");
+
+  // ── Stats row ──────────────────────────────────
+  const totalBundles = (state.bundles||[]).length;
+  const doneBundles  = (state.bundles||[]).filter(b=>b.stage===(state.stages||[]).length-1).length;
+  const inProgBundles= (state.bundles||[]).filter(b=>b.stage>=0&&b.stage<(state.stages||[]).length-1).length;
+  const totalPapersAll=(state.bundles||[]).reduce((a,b)=>a+b.count,0);
+  const overallPct   = totalBundles>0?Math.round((doneBundles/totalBundles)*100):0;
+
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString("ar-SA",{hour:"2-digit",minute:"2-digit"});
+  const dateStr = now.toLocaleDateString("ar-SA",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
+
+  win.document.write(`<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>داشبورد متابعة الاختبارات</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:'IBM Plex Sans Arabic',Arial,sans-serif;
+  direction:rtl;
+  background:linear-gradient(135deg,#060D1A 0%,#0B1D3A 40%,#111827 100%);
+  min-height:100vh;
+  color:#fff;
+  overflow:hidden;
+}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:rgba(255,255,255,.05)}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.2);border-radius:2px}
+
+.grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  grid-template-rows:auto 1fr;
+  height:100vh;
+  gap:0;
+}
+
+/* ── Header ── */
+.header{
+  grid-column:1/-1;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 28px;
+  background:rgba(0,0,0,.3);
+  border-bottom:1px solid rgba(255,255,255,.08);
+  backdrop-filter:blur(10px);
+}
+.header-logo{width:52px;height:52px;object-fit:contain;border-radius:10px}
+.header-center{text-align:center;flex:1}
+.header-center h1{font-size:24px;font-weight:800;color:#fff;margin-bottom:2px}
+.header-center p{font-size:13px;color:rgba(255,255,255,.5);font-weight:500}
+.header-time{text-align:left;min-width:160px}
+.header-time .time{font-size:32px;font-weight:800;color:#F2B830;font-variant-numeric:tabular-nums;line-height:1}
+.header-time .date{font-size:12px;color:rgba(255,255,255,.45);margin-top:3px}
+
+/* ── Panels ── */
+.panel{
+  padding:20px 22px;
+  overflow-y:auto;
+  border-left:1px solid rgba(255,255,255,.06);
+}
+.panel-title{
+  display:flex;align-items:center;gap:10px;
+  font-size:18px;font-weight:800;color:#fff;
+  margin-bottom:14px;
+  padding-bottom:10px;
+  border-bottom:1px solid rgba(255,255,255,.08);
+}
+.panel-icon{
+  width:36px;height:36px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;
+}
+
+/* ── Stats bar ── */
+.stats-bar{
+  display:flex;gap:10px;margin-bottom:14px;
+}
+.stat-chip{
+  flex:1;background:rgba(255,255,255,.06);border-radius:12px;
+  padding:10px 12px;border:1px solid rgba(255,255,255,.08);
+  text-align:center;
+}
+.stat-chip .v{font-size:22px;font-weight:900;color:#F2B830;line-height:1}
+.stat-chip .l{font-size:11px;color:rgba(255,255,255,.45);margin-top:3px}
+
+/* ── Overall progress ── */
+.overall-bar{
+  background:rgba(255,255,255,.06);border-radius:14px;
+  padding:14px 18px;margin-bottom:14px;
+  border:1px solid rgba(255,255,255,.08);
+}
+.overall-label{font-size:13px;color:rgba(255,255,255,.5);margin-bottom:8px;display:flex;justify-content:space-between}
+.overall-track{background:rgba(255,255,255,.08);border-radius:99px;height:10px;overflow:hidden}
+.overall-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#3B82F6,#8B5CF6);transition:width 1.2s ease}
+
+/* ── Refresh badge ── */
+.refresh-badge{
+  position:fixed;bottom:16px;left:16px;
+  background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.15);
+  border-radius:99px;padding:5px 12px;
+  font-size:11px;color:rgba(255,255,255,.4);
+  backdrop-filter:blur(8px);
+}
+#countdown{color:rgba(255,255,255,.6);font-weight:700}
+</style>
+</head>
+<body>
+
+<div class="grid">
+
+  <!-- ── Header ── -->
+  <div class="header">
+    <img src="${LOGO_SRC}" class="header-logo" alt="شعار"/>
+    <div class="header-center">
+      <h1>${state.schoolName||"متابعة سير الاختبارات"}</h1>
+      <p>لوحة متابعة سير الاختبارات الإلكترونية</p>
+    </div>
+    <div class="header-time">
+      <div class="time" id="clock">${timeStr}</div>
+      <div class="date" id="dateLbl">${dateStr}</div>
+    </div>
+  </div>
+
+  <!-- ── Panel Right: Today's Exams ── -->
+  <div class="panel" style="border-left:1px solid rgba(255,255,255,.06)">
+    <div class="panel-title">
+      <div class="panel-icon" style="background:rgba(242,184,48,.15)">📅</div>
+      اختبارات اليوم
+      <span style="margin-right:auto;background:rgba(255,255,255,.06);border-radius:99px;padding:3px 12px;font-size:13px;font-weight:600;color:rgba(255,255,255,.5)">${todayBundles.length} مادة</span>
+    </div>
+    <div id="todayPanel">${todayHtml}</div>
+  </div>
+
+  <!-- ── Panel Left: All Progress ── -->
+  <div class="panel">
+    <div class="panel-title">
+      <div class="panel-icon" style="background:rgba(59,130,246,.15)">📊</div>
+      سير ورقة الاختبار
+      <span style="margin-right:auto;background:rgba(255,255,255,.06);border-radius:99px;padding:3px 12px;font-size:13px;font-weight:600;color:rgba(255,255,255,.5)">${Object.keys(subjectMap).length} مادة</span>
+    </div>
+
+    <!-- stats chips -->
+    <div class="stats-bar">
+      <div class="stat-chip">
+        <div class="v">${totalBundles}</div>
+        <div class="l">إجمالي المظاريف</div>
+      </div>
+      <div class="stat-chip">
+        <div class="v" style="color:#10B981">${doneBundles}</div>
+        <div class="l">مكتملة</div>
+      </div>
+      <div class="stat-chip">
+        <div class="v" style="color:#F59E0B">${inProgBundles}</div>
+        <div class="l">قيد التنفيذ</div>
+      </div>
+      <div class="stat-chip">
+        <div class="v" style="color:#8B5CF6">${totalPapersAll}</div>
+        <div class="l">إجمالي الأوراق</div>
+      </div>
+    </div>
+
+    <!-- overall progress -->
+    <div class="overall-bar">
+      <div class="overall-label">
+        <span>نسبة الإنجاز الكلية</span>
+        <span style="font-size:18px;font-weight:900;color:#F2B830">${overallPct}%</span>
+      </div>
+      <div class="overall-track">
+        <div class="overall-fill" style="width:${overallPct}%"></div>
+      </div>
+    </div>
+
+    <!-- per-subject -->
+    <div id="subjectsPanel">${allSubjectsHtml||'<div style="text-align:center;opacity:.3;padding:30px;font-size:18px">لا توجد بيانات</div>'}</div>
+  </div>
+
+</div>
+
+<div class="refresh-badge">يتحدث تلقائياً خلال <span id="countdown">30</span> ث</div>
+
+<scr'+'ipt>
+// Live clock
+function updateClock(){
+  const n=new Date();
+  const t=n.toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'});
+  const d=n.toLocaleDateString('ar-SA',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  document.getElementById('clock').textContent=t;
+  document.getElementById('dateLbl').textContent=d;
+}
+setInterval(updateClock,1000);
+
+// Countdown + auto-reload
+let cd=30;
+setInterval(()=>{
+  cd--;
+  const el=document.getElementById('countdown');
+  if(el) el.textContent=cd;
+  if(cd<=0){ window.location.reload(); }
+},1000);
+</scr'+'ipt>
+</body>
+</html>`);
+  win.document.close();
 }
 
 // INIT
