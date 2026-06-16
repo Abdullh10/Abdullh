@@ -451,7 +451,10 @@ label.lbl{font-size:12px;color:var(--mid);display:block;margin-bottom:5px;font-w
 .banner{border-radius:var(--r10);padding:13px 16px;display:flex;align-items:center;gap:12px;margin-bottom:14px}
 .banner-icon{font-size:22px;flex-shrink:0}
 
-/* ── PRINT ───────────────────────────────────── */
+/* ── MESSAGING ───────────────────────────────── */
+.msg-type-btn{flex:1;min-width:110px;transition:all .18s}
+.msg-type-btn.active-type{transform:translateY(-1px);box-shadow:var(--sh2)}
+#bellBtn:hover{background:rgba(255,255,255,.2)!important}
 @media print{body *{visibility:hidden}#printArea,#printArea *{visibility:visible}#printArea{position:fixed;top:0;left:0;right:0;text-align:center;padding:40px}}
 
 /* ── RESPONSIVE ──────────────────────────────── */
@@ -533,6 +536,9 @@ label.lbl{font-size:12px;color:var(--mid);display:block;margin-bottom:5px;font-w
     <span class="h-title" id="hSchool"></span>
     <span class="h-role" id="hRole"></span>
     <span class="h-user" id="hUser"></span>
+    <button id="bellBtn" onclick="navigateTo('inbox')" style="display:none;position:relative;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;width:38px;height:38px;border-radius:10px;cursor:pointer;font-size:20px;line-height:1;flex-shrink:0;transition:all .15s" title="التنبيهات">
+      🔔<span id="bellBadge" style="display:none;position:absolute;top:-4px;left:-4px;background:#EF4444;color:#fff;font-size:10px;font-weight:800;min-width:18px;height:18px;border-radius:99px;display:flex;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--navy);font-family:'IBM Plex Sans Arabic',sans-serif"></span>
+    </button>
     <button class="h-logout" onclick="doLogout()">خروج</button>
   </header>
   <nav id="appNav"></nav>
@@ -604,7 +610,7 @@ async function saveToCloud() {
     schoolName:state.schoolName, adminPhone:state.adminPhone,
     subjects:state.subjects, grades:state.grades,
     stages:state.stages, teachers:state.teachers,
-    users:state.users, examSchedule:state.examSchedule||[], minutesData:state.minutesData||null, minutesArchive:state.minutesArchive||[]
+    users:state.users, examSchedule:state.examSchedule||[], minutesData:state.minutesData||null, minutesArchive:state.minutesArchive||[], inbox:state.inbox||[], principalMessages:state.principalMessages||[]
   };
   await sbUpsert("settings", {id:"main", data:settings, updated_at:new Date().toISOString()});
   // Also save to localStorage as backup
@@ -630,7 +636,7 @@ async function loadFromCloud() {
     var rows = await sbGet("settings", {id:"main"});
     if(rows && rows[0] && rows[0].data) {
       var d = rows[0].data;
-      ["schoolName","adminPhone","subjects","grades","stages","teachers","users","examSchedule","minutesData","minutesArchive"].forEach(function(k){
+      ["schoolName","adminPhone","subjects","grades","stages","teachers","users","examSchedule","minutesData","minutesArchive","inbox","principalMessages"].forEach(function(k){
         if(d[k] !== undefined) state[k] = d[k];
       });
     }
@@ -741,9 +747,9 @@ const NOTIFY_TYPES = [
 ];
 const PAGES = {
   admin:      [ {k:"admin_new", icon:"✦", label:"مظروف جديد"}, {k:"admin_list",icon:"📦",label:"المظاريف"}, {k:"settings",icon:"⚙",label:"الإعدادات"} ],
-  controller: [ {k:"ctrl_scan",icon:"📡",label:"مسح الباركود"}, {k:"ctrl_list",icon:"📋",label:"المظاريف"}, {k:"ctrl_schedule",icon:"📅",label:"جدول الاختبارات"}, {k:"ctrl_report",icon:"📄",label:"تقارير PDF"}, {k:"ctrl_minutes",icon:"📝",label:"محضر فتح المظاريف"} ],
-  notifier:   [ {k:"notif_send",icon:"💬",label:"إرسال تنبيه"}, {k:"notif_log",icon:"📜",label:"سجل التنبيهات"} ],
-  principal:  [ {k:"principal_dashboard",icon:"📊",label:"لوحة المتابعة"}, {k:"principal_report",icon:"📈",label:"التقارير"} ],
+  controller: [ {k:"ctrl_scan",icon:"📡",label:"مسح الباركود"}, {k:"ctrl_list",icon:"📋",label:"المظاريف"}, {k:"ctrl_schedule",icon:"📅",label:"جدول الاختبارات"}, {k:"ctrl_report",icon:"📄",label:"تقارير PDF"}, {k:"ctrl_minutes",icon:"📝",label:"محضر فتح المظاريف"}, {k:"inbox",icon:"🔔",label:"تنبيهات"} ],
+  notifier:   [ {k:"notif_send",icon:"💬",label:"إرسال تنبيه"}, {k:"notif_log",icon:"📜",label:"سجل التنبيهات"}, {k:"inbox",icon:"🔔",label:"تنبيهات"} ],
+  principal:  [ {k:"principal_dashboard",icon:"📊",label:"لوحة المتابعة"}, {k:"principal_report",icon:"📈",label:"التقارير"}, {k:"principal_compose",icon:"✉️",label:"إرسال رسالة"}, {k:"principal_sent",icon:"📤",label:"الرسائل المُرسَلة"} ],
 };
 
 // ═══════════════════════════════════════════════
@@ -922,16 +928,45 @@ function doLogout() {
 // ═══════════════════════════════════════════════
 // NAV
 // ═══════════════════════════════════════════════
+function getUnreadCount() {
+  if(!currentUser) return 0;
+  const inbox = (state.inbox||[]).filter(m=>m.to===currentUser.role && !m.read);
+  return inbox.length;
+}
+
+function updateBell() {
+  const btn = document.getElementById("bellBtn");
+  const badge = document.getElementById("bellBadge");
+  if(!btn||!badge) return;
+  const roles = ["controller","notifier"];
+  if(currentUser && roles.includes(currentUser.role)) {
+    btn.style.display = "flex";
+    btn.style.alignItems = "center";
+    btn.style.justifyContent = "center";
+    const cnt = getUnreadCount();
+    if(cnt>0) {
+      badge.style.display = "flex";
+      badge.textContent = cnt>9?"9+":cnt;
+    } else {
+      badge.style.display = "none";
+    }
+  } else {
+    btn.style.display = "none";
+  }
+}
+
 function renderNav() {
   const nav = document.getElementById("appNav");
   nav.innerHTML = "";
   (PAGES[currentUser.role]||[]).forEach(p=>{
     const btn = document.createElement("button");
+    const unread = (p.k==="inbox") ? getUnreadCount() : 0;
     btn.className = "nav-btn" + (currentPage===p.k?" active":"");
-    btn.innerHTML = `<span style="font-size:24px;line-height:1">${p.icon}</span><span style="font-size:11px">${p.label}</span>`;
+    btn.innerHTML = `<span style="position:relative;display:inline-block;font-size:24px;line-height:1">${p.icon}${unread>0?`<span style="position:absolute;top:-4px;left:-4px;background:#EF4444;color:#fff;font-size:9px;font-weight:800;min-width:16px;height:16px;border-radius:99px;display:flex;align-items:center;justify-content:center;padding:0 3px">${unread>9?"9+":unread}</span>`:""}</span><span style="font-size:11px">${p.label}</span>`;
     btn.onclick = () => navigateTo(p.k);
     nav.appendChild(btn);
   });
+  updateBell();
 }
 
 function navigateTo(page) {
@@ -959,6 +994,9 @@ function navigateTo(page) {
     case "ctrl_report":  renderCtrlReport(el);    break;
     case "principal_dashboard": renderPrincipalDashboard(el); break;
     case "principal_report":    renderPrincipalReport(el);    break;
+    case "principal_compose":   renderPrincipalCompose(el);   break;
+    case "principal_sent":      renderPrincipalSent(el);      break;
+    case "inbox":               renderInbox(el);              break;
     default: el.innerHTML="<p class='empty'>الصفحة غير موجودة</p>";
   }
 }
@@ -4212,6 +4250,385 @@ function printMinutes(fi) {
   toast("تم فتح نافذة الطباعة ✅");
 }
 
+
+
+// ═══════════════════════════════════════════════
+// MESSAGING SYSTEM — نظام الرسائل الداخلية مع الرد
+// ═══════════════════════════════════════════════
+
+const MSG_TYPES = [
+  { key:"urgent",   label:"عاجل جداً",  icon:"🚨", color:"#DC2626", bg:"#FEE2E2" },
+  { key:"important",label:"مهم",         icon:"⚠️", color:"#D97706", bg:"#FEF3C7" },
+  { key:"normal",   label:"عادي",        icon:"💬", color:"#2563EB", bg:"#DBEAFE" },
+  { key:"info",     label:"للعلم",       icon:"ℹ️", color:"#059669", bg:"#D1FAE5" },
+];
+const MSG_TARGETS = [
+  { role:"controller", label:"الكنترول",         icon:"📋" },
+  { role:"notifier",   label:"مسؤول التنبيهات",  icon:"📲" },
+];
+
+let _msgType    = "normal";
+let _msgTargets = [];
+
+function _mtOf(key){ return MSG_TYPES.find(t=>t.key===key)||MSG_TYPES[2]; }
+
+// ─── compose (principal) ────────────────────────
+function renderPrincipalCompose(el){
+  if(!state.principalMessages) state.principalMessages=[];
+  if(!state.inbox) state.inbox=[];
+
+  const typeHtml = MSG_TYPES.map(t=>`
+    <button onclick="_msgType='${t.key}';
+      document.querySelectorAll('.msg-type-btn').forEach(b=>{
+        const active=b.dataset.key==='${t.key}';
+        b.style.border='2px solid '+(active?'${t.color}':'var(--border)');
+        b.style.background=active?'${t.bg}':'#fff';
+        b.style.color=active?'${t.color}':'var(--mid)';
+        b.style.fontWeight=active?'700':'500';
+      });updateMsgPreview()"
+      data-key="${t.key}" class="msg-type-btn"
+      style="display:flex;align-items:center;gap:7px;padding:10px 14px;border-radius:10px;
+             border:2px solid ${_msgType===t.key?t.color:'var(--border)'};
+             background:${_msgType===t.key?t.bg:'#fff'};cursor:pointer;
+             font-family:'IBM Plex Sans Arabic',sans-serif;
+             font-weight:${_msgType===t.key?'700':'500'};
+             color:${_msgType===t.key?t.color:'var(--mid)'};
+             font-size:12px;flex:1;min-width:110px;transition:all .18s">
+      <span style="font-size:18px">${t.icon}</span>${t.label}
+    </button>`).join("");
+
+  const targetHtml = MSG_TARGETS.map(t=>`
+    <label style="display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:10px;
+                  border:2px solid ${_msgTargets.includes(t.role)?'var(--navy)':'var(--border)'};
+                  background:${_msgTargets.includes(t.role)?'rgba(11,29,58,.06)':'#fff'};
+                  cursor:pointer;transition:all .18s;font-family:'IBM Plex Sans Arabic',sans-serif;
+                  flex:1;min-width:160px">
+      <input type="checkbox" ${_msgTargets.includes(t.role)?'checked':''}
+        onchange="if(this.checked){if(!_msgTargets.includes('${t.role}'))_msgTargets.push('${t.role}');}
+                  else{_msgTargets=_msgTargets.filter(r=>r!=='${t.role}');}
+                  updateMsgPreview();
+                  this.closest('label').style.border='2px solid '+(this.checked?'var(--navy)':'var(--border)');
+                  this.closest('label').style.background=this.checked?'rgba(11,29,58,.06)':'#fff';"
+        style="width:18px;height:18px;accent-color:var(--navy);flex-shrink:0"/>
+      <span style="font-size:20px">${t.icon}</span>
+      <span style="font-weight:600;color:var(--navy);font-size:13px">${t.label}</span>
+    </label>`).join("");
+
+  el.innerHTML=`
+  <div class="page-wrap">
+    <div class="card">
+      <div class="card-title"><span class="ct-icon">✉️</span>إرسال رسالة داخلية</div>
+      <div style="margin-bottom:18px">
+        <label class="lbl" style="margin-bottom:8px">تصنيف الرسالة</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">${typeHtml}</div>
+      </div>
+      <div style="margin-bottom:18px">
+        <label class="lbl" style="margin-bottom:8px">إرسال إلى</label>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">${targetHtml}</div>
+      </div>
+      <div style="margin-bottom:14px">
+        <label class="lbl">عنوان الرسالة</label>
+        <input id="msgTitle" class="inp" placeholder="عنوان موضوع الرسالة..." oninput="updateMsgPreview()" style="font-size:14px"/>
+      </div>
+      <div style="margin-bottom:18px">
+        <label class="lbl">نص الرسالة</label>
+        <textarea id="msgBody" class="inp" rows="5" placeholder="اكتب نص الرسالة هنا..." oninput="updateMsgPreview()" style="font-size:13px;line-height:1.7;resize:vertical"></textarea>
+      </div>
+      <div id="msgPreview" style="margin-bottom:18px"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-navy" onclick="sendPrincipalMsg()" style="font-size:14px;padding:12px 24px">📤 إرسال الرسالة</button>
+        <button class="btn btn-outline" onclick="_msgTargets=[];_msgType='normal';renderPrincipalCompose(document.getElementById('pageContent'))">🗑️ مسح</button>
+      </div>
+    </div>
+  </div>`;
+  setTimeout(updateMsgPreview, 30);
+}
+
+function updateMsgPreview(){
+  const title=(document.getElementById("msgTitle")||{}).value||"";
+  const body=(document.getElementById("msgBody")||{}).value||"";
+  const prev=document.getElementById("msgPreview");
+  if(!prev) return;
+  if(!title&&!body){prev.innerHTML="";return;}
+  const mt=_mtOf(_msgType);
+  const targets=MSG_TARGETS.filter(t=>_msgTargets.includes(t.role));
+  const toStr=targets.length>0?targets.map(t=>t.label).join(" و "):"لم يُحدَّد مستلم";
+  prev.innerHTML=`
+  <div style="border-radius:12px;border:2px solid ${mt.color}40;overflow:hidden">
+    <div style="background:${mt.bg};padding:10px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid ${mt.color}30">
+      <span style="font-size:20px">${mt.icon}</span>
+      <span style="font-weight:800;color:${mt.color};font-size:13px">${mt.label}</span>
+      <span style="margin-right:auto;font-size:11px;color:var(--muted)">إلى: ${toStr}</span>
+    </div>
+    <div style="padding:13px 16px;background:#fff">
+      ${title?`<p style="font-weight:800;color:var(--navy);font-size:14px;margin-bottom:6px">${title}</p>`:""}
+      <p style="font-size:13px;color:var(--text);line-height:1.7;white-space:pre-wrap">${body}</p>
+      <p style="font-size:11px;color:var(--muted);margin-top:8px">من: ${currentUser?currentUser.name:""} · الآن</p>
+    </div>
+  </div>`;
+}
+
+function sendPrincipalMsg(){
+  const title=(document.getElementById("msgTitle")||{}).value.trim();
+  const body=(document.getElementById("msgBody")||{}).value.trim();
+  if(!title){toast("أدخل عنوان الرسالة","err");return;}
+  if(!body){toast("أدخل نص الرسالة","err");return;}
+  if(_msgTargets.length===0){toast("اختر مستلماً على الأقل","err");return;}
+  const mt=_mtOf(_msgType);
+  const msgId="msg_"+Date.now();
+  const ts=nowISO();
+  if(!state.principalMessages) state.principalMessages=[];
+  if(!state.inbox) state.inbox=[];
+
+  state.principalMessages.unshift({
+    id:msgId, ts, title, body,
+    type:_msgType, typeLabel:mt.label, typeIcon:mt.icon, typeColor:mt.color,
+    targets:[..._msgTargets],
+    targetLabels:MSG_TARGETS.filter(t=>_msgTargets.includes(t.role)).map(t=>t.label),
+    from:currentUser.name, fromRole:currentUser.role,
+    replies:[],
+  });
+
+  _msgTargets.forEach(role=>{
+    state.inbox.unshift({
+      id:"inb_"+Date.now()+"_"+role, msgId, ts,
+      title, body,
+      type:_msgType, typeLabel:mt.label, typeIcon:mt.icon, typeColor:mt.color,
+      from:currentUser.name, fromRole:currentUser.role,
+      to:role, read:false, replies:[],
+    });
+  });
+
+  saveState(); saveToCloud();
+  const toLabel=_msgTargets.length===2?"الجميع":MSG_TARGETS.find(t=>t.role===_msgTargets[0])?.label||"";
+  toast(`✅ تم إرسال الرسالة إلى ${toLabel}`);
+  _msgTargets=[]; _msgType="normal";
+  renderPrincipalCompose(document.getElementById("pageContent"));
+}
+
+// ─── sent box (principal) ────────────────────────
+function renderPrincipalSent(el){
+  const msgs=(state.principalMessages||[]);
+  const newReplies=msgs.filter(m=>(m.replies||[]).some(r=>!r.readByPrincipal)).length;
+  el.innerHTML=`
+  <div class="page-wrap">
+    <div class="card">
+      <div class="card-title" style="margin-bottom:4px">
+        <span class="ct-icon">📤</span>الرسائل المُرسَلة
+        ${newReplies>0?`<span style="background:#059669;color:#fff;font-size:11px;font-weight:800;padding:2px 10px;border-radius:99px;margin-right:8px">${newReplies} رد جديد</span>`:""}
+        <span style="margin-right:auto;font-size:11px;color:var(--muted);font-weight:400">${msgs.length} رسالة</span>
+      </div>
+      ${msgs.length===0
+        ?`<div class="empty"><span class="empty-icon">📭</span>لا توجد رسائل مُرسَلة بعد</div>`
+        :`<div style="display:flex;flex-direction:column;gap:12px">
+          ${msgs.map((m,mi)=>_renderMsgCard(m,mi,"sent")).join("")}
+        </div>`}
+    </div>
+  </div>`;
+  // mark principal replies as read
+  msgs.forEach(m=>(m.replies||[]).forEach(r=>r.readByPrincipal=true));
+  saveState();
+}
+
+// ─── inbox (controller / notifier / principal replies) ──
+function renderInbox(el){
+  if(!state.inbox) state.inbox=[];
+  const myMsgs=state.inbox.filter(m=>m.to===currentUser.role)
+                           .sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+  const unread=myMsgs.filter(m=>!m.read).length;
+  state.inbox.forEach(m=>{if(m.to===currentUser.role) m.read=true;});
+  saveState(); saveToCloud();
+  setTimeout(()=>updateBell(),50);
+
+  el.innerHTML=`
+  <div class="page-wrap">
+    <div class="card">
+      <div class="card-title" style="margin-bottom:4px">
+        <span class="ct-icon">🔔</span>التنبيهات والرسائل الواردة
+        ${unread>0?`<span style="background:#EF4444;color:#fff;font-size:11px;font-weight:800;padding:2px 10px;border-radius:99px;margin-right:8px">${unread} جديد</span>`:""}
+        <span style="margin-right:auto;font-size:11px;color:var(--muted);font-weight:400">${myMsgs.length} رسالة</span>
+      </div>
+      ${myMsgs.length===0
+        ?`<div class="empty"><span class="empty-icon">📭</span>لا توجد رسائل واردة</div>`
+        :`<div style="display:flex;flex-direction:column;gap:12px">
+          ${myMsgs.map((m,mi)=>_renderMsgCard(m,mi,"inbox")).join("")}
+        </div>`}
+      ${myMsgs.length>0?`<div style="margin-top:14px;text-align:left">
+        <button class="btn btn-outline btn-sm" style="color:var(--red);border-color:var(--red)"
+          onclick="if(confirm('حذف جميع الرسائل الواردة؟')){state.inbox=state.inbox.filter(m=>m.to!=='${currentUser.role}');saveState();saveToCloud();renderInbox(document.getElementById('pageContent'));toast('تم مسح صندوق الوارد')}">🗑️ مسح الكل</button>
+      </div>`:""}
+    </div>
+  </div>`;
+}
+
+// ─── unified message card with reply thread ──────
+function _renderMsgCard(m, mi, view){
+  const mt=_mtOf(m.type);
+  const replies=m.replies||[];
+  const newReplies=view==="sent"?replies.filter(r=>!r.readByPrincipal).length:0;
+  const isInbox=(view==="inbox");
+  const toStr=(m.targetLabels||[]).join(" و ");
+  const replyBoxId=`replyBox_${view}_${mi}`;
+  const taBtnId=`replyToggle_${view}_${mi}`;
+  const taId=`replyTA_${view}_${mi}`;
+
+  // build reply thread
+  const threadHtml=replies.length===0?"":replies.map(r=>{
+    const isMine=(isInbox&&r.fromRole===currentUser.role)||(!isInbox&&r.fromRole==="principal");
+    return `
+    <div style="display:flex;gap:0;${isMine?'justify-content:flex-start;flex-direction:row-reverse':''}">
+      <div style="width:24px;flex-shrink:0;display:flex;justify-content:center;padding-top:4px">
+        <div style="width:2px;background:${mt.color}25;min-height:100%"></div>
+      </div>
+      <div style="flex:1;background:${isMine?'#f0f4ff':'#f8f9fc'};border-radius:10px;padding:9px 13px;margin-bottom:5px;border:1px solid ${isMine?'#c7d4ff':'var(--border)'}">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px;flex-wrap:wrap">
+          <span style="font-weight:800;color:var(--navy);font-size:12px">${r.from}</span>
+          ${isMine?`<span style="background:#DBEAFE;color:#1E40AF;border-radius:99px;padding:1px 7px;font-size:10px;font-weight:700">أنت</span>`:`<span style="background:#D1FAE5;color:#059669;border-radius:99px;padding:1px 7px;font-size:10px;font-weight:700">رد وارد ↩️</span>`}
+          <span style="margin-right:auto;font-size:10px;color:var(--muted)">${fmt(r.ts)}</span>
+        </div>
+        <p style="font-size:13px;color:var(--text);line-height:1.65;white-space:pre-wrap;margin:0">${r.body}</p>
+      </div>
+    </div>`;
+  }).join("");
+
+  return `
+  <div id="msgCard_${view}_${mi}" style="border-radius:13px;border:2px solid ${mt.color}30;overflow:hidden;transition:box-shadow .2s" onmouseover="this.style.boxShadow='var(--sh2)'" onmouseout="this.style.boxShadow='none'">
+
+    <!-- ── header ── -->
+    <div style="background:${mt.bg};padding:10px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid ${mt.color}20">
+      <span style="font-size:20px">${mt.icon}</span>
+      <span style="font-weight:800;color:${mt.color};font-size:13px">${mt.label}</span>
+      ${isInbox
+        ?`<span style="font-size:11px;color:var(--mid)">من: <b>${m.from}</b></span>`
+        :`<span style="background:rgba(0,0,0,.07);border-radius:99px;padding:2px 9px;font-size:11px;font-weight:600;color:var(--mid)">إلى: ${toStr}</span>`}
+      ${replies.length>0?`<span style="background:${mt.color}20;color:${mt.color};border-radius:99px;padding:2px 9px;font-size:11px;font-weight:700;border:1px solid ${mt.color}40">${replies.length} ${replies.length===1?'رد':'ردود'}</span>`:""}
+      ${newReplies>0?`<span style="background:#059669;color:#fff;border-radius:99px;padding:2px 9px;font-size:10px;font-weight:800">↩️ رد جديد</span>`:""}
+      <span style="margin-right:auto;font-size:11px;color:var(--muted)">${fmt(m.ts)}</span>
+      ${!isInbox?`<button class="del-btn" title="حذف" onclick="if(confirm('حذف هذه الرسالة؟')){state.principalMessages.splice(${mi},1);saveState();saveToCloud();renderPrincipalSent(document.getElementById('pageContent'))}">✕</button>`:""}
+    </div>
+
+    <!-- ── original message body ── -->
+    <div style="padding:13px 16px;background:#fff;border-bottom:${replies.length?'1px solid var(--border)':'none'}">
+      <p style="font-weight:800;color:var(--navy);font-size:15px;margin-bottom:7px">${m.title}</p>
+      <p style="font-size:13px;color:var(--text);line-height:1.75;white-space:pre-wrap">${m.body}</p>
+    </div>
+
+    <!-- ── reply thread ── -->
+    ${replies.length>0?`<div style="padding:10px 16px 4px;background:#fafbfd">${threadHtml}</div>`:""}
+
+    <!-- ── reply action bar ── -->
+    <div style="padding:10px 14px;background:#f4f6fb;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px">
+      <div id="${replyBoxId}" style="display:none">
+        <textarea id="${taId}" class="inp" rows="3"
+          placeholder="اكتب ردك هنا..." style="font-size:13px;line-height:1.65;resize:vertical;margin-bottom:8px"></textarea>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-navy btn-sm" onclick="_submitReply('${m.id||""}','${view}',${mi})">↩️ إرسال الرد</button>
+          <button class="btn btn-outline btn-sm" onclick="
+            document.getElementById('${replyBoxId}').style.display='none';
+            document.getElementById('${taBtnId}').style.display='flex';
+          ">إلغاء</button>
+        </div>
+      </div>
+      <button id="${taBtnId}" class="btn btn-outline btn-sm" style="align-self:flex-start;display:flex;align-items:center;gap:6px"
+        onclick="
+          document.getElementById('${replyBoxId}').style.display='block';
+          this.style.display='none';
+          setTimeout(()=>document.getElementById('${taId}').focus(),40);
+        ">
+        ↩️ رد على الرسالة
+      </button>
+    </div>
+  </div>`;
+}
+
+// ─── submit a reply ──────────────────────────────
+function _submitReply(msgId, view, mi){
+  const ta=document.getElementById(`replyTA_${view}_${mi}`);
+  if(!ta) return;
+  const body=ta.value.trim();
+  if(!body){toast("اكتب نص الرد","err");return;}
+
+  const reply={
+    id:"rep_"+Date.now(),
+    ts:nowISO(),
+    body,
+    from:currentUser.name,
+    fromRole:currentUser.role,
+    readByPrincipal:(view==="sent"), // sent = principal replying = auto-read
+  };
+
+  if(!state.principalMessages) state.principalMessages=[];
+  if(!state.inbox) state.inbox=[];
+
+  // Add to principalMessages entry
+  const pm=state.principalMessages.find(m=>m.id===msgId);
+  if(pm){ if(!pm.replies) pm.replies=[]; pm.replies.push(reply); }
+
+  // Add to inbox entry
+  const inb=state.inbox.find(m=>(m.msgId===msgId||m.id===msgId) && m.to===currentUser.role);
+  if(inb){ if(!inb.replies) inb.replies=[]; inb.replies.push(reply); }
+
+  // If replying from inbox → create notification for principal
+  if(view==="inbox"){
+    state.inbox.unshift({
+      id:"inb_rep_"+Date.now(),
+      msgId,
+      ts:nowISO(),
+      title:"↩️ رد على: "+((pm&&pm.title)||"رسالتك"),
+      body,
+      type:"info", typeLabel:"رد وارد", typeIcon:"↩️", typeColor:"#059669",
+      from:currentUser.name, fromRole:currentUser.role,
+      to:"principal", read:false, isReply:true, replies:[],
+    });
+  }
+
+  saveState(); saveToCloud();
+  ta.value="";
+  document.getElementById(`replyBox_${view}_${mi}`).style.display="none";
+  const btn=document.getElementById(`replyToggle_${view}_${mi}`);
+  if(btn) btn.style.display="flex";
+  toast("✅ تم إرسال الرد");
+
+  // Re-render the card in place
+  const cardEl=document.getElementById(`msgCard_${view}_${mi}`);
+  if(cardEl){
+    const src=(view==="sent")?(state.principalMessages||[])
+              :(state.inbox||[]).filter(m=>m.to===currentUser.role).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+    const msg=src[mi];
+    if(msg) cardEl.outerHTML=_renderMsgCard(msg,mi,view);
+  }
+}
+
+// ─── bell ────────────────────────────────────────
+function getUnreadCount(){
+  if(!currentUser) return 0;
+  return (state.inbox||[]).filter(m=>m.to===currentUser.role && !m.read).length;
+}
+
+function updateBell(){
+  const btn=document.getElementById("bellBtn");
+  const badge=document.getElementById("bellBadge");
+  if(!btn||!badge) return;
+  if(currentUser && ["controller","notifier","principal"].includes(currentUser.role)){
+    btn.style.display="flex";
+    btn.style.alignItems="center";
+    btn.style.justifyContent="center";
+    const cnt=getUnreadCount();
+    if(cnt>0){
+      badge.style.display="flex";
+      badge.textContent=cnt>9?"9+":cnt;
+    } else {
+      badge.style.display="none";
+    }
+  } else {
+    btn.style.display="none";
+  }
+}
+
+function refreshBellAfterLoad(){
+  if(currentUser){renderNav();updateBell();}
+}
+
 // INIT
 // ═══════════════════════════════════════════════
 // ── INIT ─────────────────────────────────────────
@@ -4228,6 +4645,7 @@ renderLoginDemos();
     if(ldg){ ldg.style.display="none"; }
     // After cloud load, also persist to localStorage so next refresh is instant
     saveState();
+    refreshBellAfterLoad();
   } catch(e) {
     var ldg = document.getElementById("loadingMsg");
     if(ldg) ldg.style.display="none";
