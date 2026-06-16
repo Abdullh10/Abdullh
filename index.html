@@ -132,8 +132,8 @@ body{font-family:'IBM Plex Sans Arabic',Arial,sans-serif;background:var(--bg);co
 .nav-icon{font-size:22px}
 
 /* MAIN */
-#appMain{flex:1;padding:24px;overflow-y:auto;background:linear-gradient(180deg,var(--bg) 0%,#E5E9F4 100%);min-height:calc(100vh - 116px)}
-.page-wrap{max-width:740px;margin:0 auto;animation:fadeIn .25s ease}
+#appMain{flex:1;padding:20px 16px;overflow-y:auto;background:linear-gradient(180deg,var(--bg) 0%,#E5E9F4 100%);min-height:calc(100vh - 116px)}
+.page-wrap{max-width:960px;margin:0 auto;animation:fadeIn .25s ease}
 
 /* ── CARDS ───────────────────────────────────── */
 .card{
@@ -460,7 +460,7 @@ label.lbl{font-size:12px;color:var(--mid);display:block;margin-bottom:5px;font-w
   .info-grid{grid-template-columns:1fr}
   .login-card{padding:32px 22px}
   .card{padding:16px}
-  #appMain{padding:14px}
+  #appMain{padding:12px 8px}
   #appHeader{padding:0 14px}
 }
 </style>
@@ -604,7 +604,7 @@ async function saveToCloud() {
     schoolName:state.schoolName, adminPhone:state.adminPhone,
     subjects:state.subjects, grades:state.grades,
     stages:state.stages, teachers:state.teachers,
-    users:state.users, examSchedule:state.examSchedule||[], minutesData:state.minutesData||null
+    users:state.users, examSchedule:state.examSchedule||[], minutesData:state.minutesData||null, minutesArchive:state.minutesArchive||[]
   };
   await sbUpsert("settings", {id:"main", data:settings, updated_at:new Date().toISOString()});
   // Also save to localStorage as backup
@@ -630,7 +630,7 @@ async function loadFromCloud() {
     var rows = await sbGet("settings", {id:"main"});
     if(rows && rows[0] && rows[0].data) {
       var d = rows[0].data;
-      ["schoolName","adminPhone","subjects","grades","stages","teachers","users","examSchedule","minutesData"].forEach(function(k){
+      ["schoolName","adminPhone","subjects","grades","stages","teachers","users","examSchedule","minutesData","minutesArchive"].forEach(function(k){
         if(d[k] !== undefined) state[k] = d[k];
       });
     }
@@ -2229,39 +2229,187 @@ function printSchedule() {
 // ═══════════════════════════════════════════════
 function renderCtrlReport(el) {
   const subjects = [...new Set(state.bundles.map(b=>b.subject))].sort();
+  const archive = state.minutesArchive||[];
+
+  // Build archive section HTML
+  const archiveHtml = archive.length===0
+    ? `<p style="color:var(--muted);font-size:13px;padding:10px 0">لا توجد محاضر محفوظة بعد — احفظ محضراً من صفحة "محضر فتح المظاريف"</p>`
+    : archive.map((a,i)=>{
+        const dateStr = `${a.hijriDay||""} ${a.hijriDayNum?toArabicNum(a.hijriDayNum):""}/${a.hijriMonth||""}/${a.hijriYear||""}هـ`;
+        const savedDate = new Date(a.savedAt).toLocaleString("ar-SA",{dateStyle:"short",timeStyle:"short"});
+        const rowCount = (a.rows||[]).filter(r=>r.subject).length;
+        return `
+        <div style="background:var(--bg);border-radius:10px;padding:13px 16px;margin-bottom:8px;border:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <div style="width:40px;height:40px;background:linear-gradient(135deg,var(--navy),var(--navy3));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">📝</div>
+          <div style="flex:1;min-width:160px">
+            <p style="font-weight:800;color:var(--navy);font-size:13px;margin-bottom:2px">${a.label}</p>
+            <p style="font-size:11px;color:var(--muted)">${dateStr} · ${rowCount} مادة</p>
+            <p style="font-size:10px;color:var(--faint)">حُفظ: ${savedDate}</p>
+          </div>
+          <div style="display:flex;gap:7px;flex-wrap:wrap">
+            <button class="btn btn-navy btn-sm" onclick="printArchivedMinutes(${i})">🖨️ طباعة PDF</button>
+            <button class="btn btn-outline btn-sm" style="color:var(--red);border-color:var(--red)" onclick="if(confirm('حذف هذه النسخة؟')){state.minutesArchive.splice(${i},1);saveState();saveToCloud();renderCtrlReport(document.getElementById('pageContent'));toast('تم الحذف')}">✕ حذف</button>
+          </div>
+        </div>`;
+      }).join("");
+
   el.innerHTML=`
-  <div class="card">
-    <p class="card-title">📄 تقارير PDF للكنترول</p>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:16px">اختر المادة لإنشاء تقرير تفصيلي كامل قابل للطباعة</p>
-    ${state.bundles.length===0?`<p class="empty">لا توجد مظاريف لإنشاء تقارير</p>`:`
-    <!-- All subjects report -->
-    <div style="background:var(--bg);border-radius:10px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px">
-      <span style="font-size:28px">📋</span>
-      <div style="flex:1">
-        <p style="font-weight:800;color:var(--navy);font-size:14px">تقرير شامل — جميع المواد</p>
-        <p style="font-size:12px;color:var(--muted)">${state.bundles.length} مظروف · جميع المراحل</p>
+  <div class="page-wrap">
+
+    <!-- أرشيف المحاضر المحفوظة -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title"><span class="ct-icon">📝</span>محاضر فتح المظاريف المحفوظة
+        <span style="margin-right:auto;font-size:11px;color:var(--muted);font-weight:400">${archive.length} نسخة</span>
       </div>
-      <button class="btn btn-navy" onclick="generatePDF('ALL')">📄 إنشاء PDF</button>
+      ${archiveHtml}
     </div>
-    <!-- Per subject -->
-    <p style="font-size:12px;font-weight:700;color:var(--mid);margin-bottom:10px">تقارير حسب المادة:</p>
-    ${subjects.map(subj=>{
-      const bs=state.bundles.filter(b=>b.subject===subj);
-      const doneCount=bs.filter(b=>b.stage===state.stages.length-1).length;
-      const lastStages=[...new Set(bs.map(b=>b.stage<0?"جديد":state.stages[b.stage]||"—"))];
-      return `
-      <div style="background:var(--bg);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-        <div style="flex:1;min-width:150px">
-          <p style="font-weight:800;color:var(--navy);font-size:13px">${subj}</p>
-          <p style="font-size:11px;color:var(--muted)">${bs.length} مظروف · ${bs.reduce((a,b)=>a+b.count,0)} ورقة · مكتمل: ${doneCount}</p>
+
+    <!-- تقارير المظاريف -->
+    <div class="card">
+      <p class="card-title">📄 تقارير PDF للكنترول</p>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:16px">اختر المادة لإنشاء تقرير تفصيلي كامل قابل للطباعة</p>
+      ${state.bundles.length===0?`<p class="empty">لا توجد مظاريف لإنشاء تقارير</p>`:`
+      <div style="background:var(--bg);border-radius:10px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px">
+        <span style="font-size:28px">📋</span>
+        <div style="flex:1">
+          <p style="font-weight:800;color:var(--navy);font-size:14px">تقرير شامل — جميع المواد</p>
+          <p style="font-size:12px;color:var(--muted)">${state.bundles.length} مظروف · جميع المراحل</p>
         </div>
-        <div style="display:flex;gap:5px;flex-wrap:wrap;flex:1">
-          ${bs.map(b=>{const c=b.stage<0?"var(--muted)":sc(b.stage);return `<span style="background:${c}20;color:${c};border:1px solid ${c}50;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700">${b.barcode}</span>`;}).join("")}
-        </div>
-        <button class="btn btn-navy btn-sm" onclick="generatePDF('${subj}')">📄 PDF</button>
-      </div>`;
-    }).join("")}`}
+        <button class="btn btn-navy" onclick="generatePDF('ALL')">📄 إنشاء PDF</button>
+      </div>
+      <p style="font-size:12px;font-weight:700;color:var(--mid);margin-bottom:10px">تقارير حسب المادة:</p>
+      ${subjects.map(subj=>{
+        const bs=state.bundles.filter(b=>b.subject===subj);
+        const doneCount=bs.filter(b=>b.stage===state.stages.length-1).length;
+        return `
+        <div style="background:var(--bg);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <div style="flex:1;min-width:150px">
+            <p style="font-weight:800;color:var(--navy);font-size:13px">${subj}</p>
+            <p style="font-size:11px;color:var(--muted)">${bs.length} مظروف · ${bs.reduce((a,b)=>a+b.count,0)} ورقة · مكتمل: ${doneCount}</p>
+          </div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;flex:1">
+            ${bs.map(b=>{const c=b.stage<0?"var(--muted)":sc(b.stage);return `<span style="background:${c}20;color:${c};border:1px solid ${c}50;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700">${b.barcode}</span>`;}).join("")}
+          </div>
+          <button class="btn btn-navy btn-sm" onclick="generatePDF('${subj}')">📄 PDF</button>
+        </div>`;
+      }).join("")}`}
+    </div>
   </div>`;
+}
+
+function printArchivedMinutes(archiveIdx) {
+  const archive = state.minutesArchive||[];
+  const a = archive[archiveIdx];
+  if(!a){ toast("النسخة غير موجودة","err"); return; }
+
+  const rows=(a.rows||[]).map((r,i)=>{
+    const sigImg=r.sig?`<img src="${r.sig}" style="max-width:120px;max-height:48px;display:block;margin:auto"/>`:
+      `<div style="width:120px;height:48px;border-bottom:1px solid #bbb;margin:auto"></div>`;
+    return `<tr>
+      <td style="text-align:center;padding:8px 5px">${i+1}</td>
+      <td style="padding:8px 7px;font-weight:700">${r.subject||"—"}</td>
+      <td style="padding:8px 7px">${r.grade||"—"}</td>
+      <td style="padding:8px 7px;direction:ltr;text-align:center">${r.time||":"}</td>
+      <td style="padding:8px 7px">${r.teacherName||"—"}</td>
+      <td style="padding:8px 7px">${r.notes||""}</td>
+      <td style="padding:5px;text-align:center">${sigImg}</td>
+    </tr>`;
+  }).join("");
+
+  const committee=(a.committee||[]).map((c,i)=>{
+    const sigImg=c.sig?`<img src="${c.sig}" style="max-width:140px;max-height:52px;display:block;margin:auto"/>`:
+      `<div style="width:140px;height:52px;border-bottom:1px solid #bbb;margin:auto"></div>`;
+    return `<tr>
+      <td style="text-align:center;padding:8px 5px">${i+1}</td>
+      <td style="padding:8px 10px;font-weight:700">${c.name||"—"}</td>
+      <td style="padding:5px;text-align:center">${sigImg}</td>
+    </tr>`;
+  }).join("");
+
+  const dateStr=`${a.hijriDay||""} الموافق ${a.hijriDayNum?toArabicNum(a.hijriDayNum):".."}/${a.hijriMonth||".........."}/${a.hijriYear||"...."}`;
+  const savedDate=new Date(a.savedAt).toLocaleString("ar-SA",{dateStyle:"long",timeStyle:"short"});
+  const schoolName=state.schoolName||"مدرسة العلا الثانوية";
+
+  const win=window.open("","_blank","width=960,height=780");
+  win.document.write(`<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<title>${a.label}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Tajawal',Arial,sans-serif;direction:rtl;padding:28px 36px;color:#0B1D3A;font-size:13px}
+  .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .logo{width:90px;height:90px;object-fit:contain}
+  .center-head{text-align:center;flex:1;padding:0 10px}
+  .center-head h1{font-size:17px;font-weight:800;margin-bottom:3px}
+  .center-head h2{font-size:13px;color:#444;font-weight:600}
+  .badge{display:inline-block;background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;border-radius:6px;padding:4px 12px;font-size:11px;font-weight:700;margin-top:6px}
+  .intro-box{border:1.5px solid #0B1D3A;border-radius:7px;padding:12px 16px;margin:14px 0;font-size:13px;line-height:2;text-align:justify}
+  table{width:100%;border-collapse:collapse;margin-bottom:18px;font-size:12px}
+  th{background:#0B1D3A;color:#fff;padding:9px 7px;text-align:right;font-weight:700}
+  td{padding:7px 7px;border:1px solid #ccd;vertical-align:middle}
+  tr:nth-child(even) td{background:#f6f7fb}
+  .footer-sig{margin-top:24px;text-align:center;font-size:13.5px;font-weight:600;line-height:2}
+  @media print{.no-print{display:none}body{padding:18px 24px}}
+</style>
+</head>
+<body>
+<div class="header">
+  <img src="${LOGO_SRC}" class="logo" alt="شعار"/>
+  <div class="center-head">
+    <h1>${a.label}</h1>
+    <h2>اختبار نهاية الفصل الدراسي الثاني للعام الدراسي ١٤٤٧هـ</h2>
+    <h2 style="margin-top:2px">${schoolName}</h2>
+    <span class="badge">📁 نسخة محفوظة — ${savedDate}</span>
+  </div>
+  <img src="${LOGO_SRC}" class="logo" alt="" style="opacity:0.1"/>
+</div>
+
+<div class="intro-box">
+  إنه في يوم <strong>${a.hijriDay||"الأربعاء"}</strong> الموافق <strong>${a.hijriDayNum?toArabicNum(a.hijriDayNum):".."}/${a.hijriMonth||".........."}/${a.hijriYear||"...."}هـ</strong>، تم فتح مظاريف المواد المسجلة أدناه وقد وجدت المظاريف سليمة ومغلقة ومختومة بختم المدرسة.
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width:34px;text-align:center">م</th>
+      <th>المادة</th>
+      <th style="min-width:90px">الصف</th>
+      <th style="min-width:55px;text-align:center">الوقت</th>
+      <th>اسم المعلم</th>
+      <th style="min-width:80px">ملاحظات</th>
+      <th style="min-width:130px;text-align:center">التوقيع</th>
+    </tr>
+  </thead>
+  <tbody>${rows}</tbody>
+</table>
+
+<table style="max-width:480px;margin:0 auto 22px">
+  <thead>
+    <tr>
+      <th style="width:34px;text-align:center">م</th>
+      <th>أعضاء اللجنة</th>
+      <th style="min-width:160px;text-align:center">التوقيع</th>
+    </tr>
+  </thead>
+  <tbody>${committee}</tbody>
+</table>
+
+<div class="footer-sig">
+  <p>والله الموفق،،،</p>
+  <p style="margin-top:6px">مدير ${schoolName} &nbsp;|&nbsp; رئيس لجنة الاختبارات</p>
+  <p style="margin-top:3px">${a.principal||""}</p>
+</div>
+
+<div class="no-print" style="text-align:center;margin-top:20px">
+  <button onclick="window.print()" style="padding:10px 28px;background:#0B1D3A;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-family:inherit;font-weight:700">🖨️ طباعة / حفظ PDF</button>
+  &nbsp;
+  <button onclick="window.close()" style="padding:10px 18px;background:#64748b;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit">إغلاق</button>
+</div>
+</body></html>`);
+  win.document.close();
+  toast("تم فتح النسخة المحفوظة ✅");
 }
 
 function generatePDF(subjectFilter) {
@@ -3796,6 +3944,7 @@ function renderCtrlMinutes(el) {
     <div class="card" style="padding:14px 16px">
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <button class="btn btn-navy" onclick="printMinutes(${fi})">🖨️ طباعة / حفظ PDF</button>
+        <button class="btn btn-green" onclick="archiveMinutes(${fi})">💾 حفظ نسخة في التقارير</button>
         <button class="btn btn-mid btn-sm" onclick="
           if(confirm('مسح بيانات هذا المحضر؟')){
             state.minutesData.forms[${fi}]={id:state.minutesData.forms[${fi}].id,label:state.minutesData.forms[${fi}].label,rows:[{subject:'',grade:'',time:'',teacherName:'',notes:'',sig:''}],committee:[{name:'',sig:''},{name:'',sig:''}]};
@@ -3894,6 +4043,34 @@ function addMinutesRow(fi) {
     // scroll new row into view
     tr.scrollIntoView({behavior:"smooth", block:"center"});
   }, 40);
+}
+
+function archiveMinutes(fi) {
+  if(fi===undefined) fi = state.minutesData.activeFormIdx||0;
+  const md = state.minutesData;
+  const form = md.forms[fi];
+  if(!form){ toast("لا يوجد محضر للحفظ","err"); return; }
+
+  if(!state.minutesArchive) state.minutesArchive=[];
+
+  // Build snapshot — deep copy without canvas data (keep sig URLs)
+  const snapshot = {
+    id: "arc_" + Date.now(),
+    savedAt: new Date().toISOString(),
+    hijriDay: md.hijriDay||"",
+    hijriDayNum: md.hijriDayNum||"",
+    hijriMonth: md.hijriMonth||"",
+    hijriYear: md.hijriYear||"١٤٤٧",
+    principal: md.principal||"",
+    label: form.label||"محضر",
+    rows: form.rows.map(r=>({...r})),
+    committee: form.committee.map(c=>({...c})),
+  };
+
+  state.minutesArchive.unshift(snapshot); // newest first
+  saveMinutes();
+  saveToCloud();
+  toast("✅ تم حفظ نسخة في التقارير");
 }
 
 function restoreAllMinutesSelects(fi) {
