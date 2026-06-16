@@ -4653,45 +4653,25 @@ function refreshBellAfterLoad(){
 // ═══════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════
 // EXTERNAL DASHBOARD — داشبورد الشاشة الخارجية
 // ═══════════════════════════════════════════════
 
+function _saveDashData() {
+  const payload = {
+    schoolName: state.schoolName||"متابعة سير الاختبارات",
+    bundles:    state.bundles||[],
+    stages:     state.stages||[],
+    LOGO_SRC:   LOGO_SRC,
+    savedAt:    Date.now(),
+  };
+  try { localStorage.setItem("__dashData", JSON.stringify(payload)); } catch(e){}
+}
+
 function openExternalDashboard() {
-
-  const todayISO = new Date().toISOString().slice(0,10);
-  const todayBundles = (state.bundles||[]).filter(b=>b.examDate===todayISO);
-
-  // Build subject map
-  const subjectMap = {};
-  (state.bundles||[]).forEach(b=>{
-    if(!subjectMap[b.subject]) subjectMap[b.subject]={subject:b.subject,bundles:[]};
-    subjectMap[b.subject].bundles.push(b);
-  });
-
-  const stagesLen    = (state.stages||[]).length;
-  const totalBundles = (state.bundles||[]).length;
-  const doneBundles  = (state.bundles||[]).filter(b=>b.stage===stagesLen-1).length;
-  const inProgBundles= (state.bundles||[]).filter(b=>b.stage>=0&&b.stage<stagesLen-1).length;
-  const newBundles   = (state.bundles||[]).filter(b=>b.stage<0).length;
-  const totalPapers  = (state.bundles||[]).reduce((a,b)=>a+b.count,0);
-  const overallPct   = totalBundles>0?Math.round((doneBundles/totalBundles)*100):0;
-
-  const STAGE_COLORS = ["#3B82F6","#8B5CF6","#06B6D4","#F59E0B","#EF4444","#10B981","#F97316","#22C55E","#A855F7","#6366F1","#14B8A6","#64748B"];
-  const sc2 = i => STAGE_COLORS[i % STAGE_COLORS.length];
-
-  // ── Serialise data for the new window ──────────
-  const DATA = JSON.stringify({
-    schoolName:   state.schoolName||"متابعة سير الاختبارات",
-    bundles:      state.bundles||[],
-    stages:       state.stages||[],
-    todayISO,
-    LOGO_SRC,
-    STAGE_COLORS,
-    stats:{ totalBundles, doneBundles, inProgBundles, newBundles, totalPapers, overallPct }
-  }).replace(/</g,"\\u003c").replace(/>/g,"\\u003e");
-
+  _saveDashData();
   const win = window.open("","_blank","width=1920,height=1080");
-
   win.document.write(`<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -4699,531 +4679,250 @@ function openExternalDashboard() {
 <title>داشبورد متابعة الاختبارات</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 <style>
-/* ── Reset & base ── */
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --navy:#060D1A;
-  --navy2:#0B1D3A;
-  --navy3:#112244;
   --gold:#F2B830;
-  --gold2:#C9961E;
   --glass:rgba(255,255,255,.06);
-  --glass2:rgba(255,255,255,.10);
   --border:rgba(255,255,255,.09);
-  --text:rgba(255,255,255,.92);
   --muted:rgba(255,255,255,.42);
-  --faint:rgba(255,255,255,.16);
+  --faint:rgba(255,255,255,.14);
+  --hdr-h:60px;
+  --stats-h:62px;
+  --prog-h:32px;
+  --ticker-h:30px;
+  --cols-h:calc(100vh - 60px - 62px - 32px - 30px);
 }
-html,body{width:100%;height:100%;overflow:hidden}
-body{
-  font-family:'IBM Plex Sans Arabic',Arial,sans-serif;
-  direction:rtl;
-  background:radial-gradient(ellipse at 20% 50%, #0D2244 0%, #060D1A 60%);
-  color:var(--text);
-}
-
-/* ── Animated bg particles ── */
+html,body{width:100%;height:100vh;overflow:hidden;
+  background:radial-gradient(ellipse at 20% 50%,#0D2244 0%,#060D1A 65%);
+  font-family:'IBM Plex Sans Arabic',Arial,sans-serif;direction:rtl;color:#fff}
 .particles{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
-.particle{
-  position:absolute;border-radius:50%;
-  animation:float linear infinite;
-  opacity:0;
-}
-@keyframes float{
-  0%  {transform:translateY(100vh) scale(0);opacity:0}
-  10% {opacity:.15}
-  90% {opacity:.08}
-  100%{transform:translateY(-20px) scale(1.2);opacity:0}
-}
+.particle{position:absolute;border-radius:50%;animation:pfloat linear infinite;opacity:0}
+@keyframes pfloat{
+  0%{transform:translateY(100vh) scale(0);opacity:0}10%{opacity:.12}
+  90%{opacity:.06}100%{transform:translateY(-30px) scale(1.3);opacity:0}}
+.shell{position:relative;z-index:1;display:flex;flex-direction:column;height:100vh;overflow:hidden}
 
-/* ── Layout ── */
-.shell{position:relative;z-index:1;display:flex;flex-direction:column;height:100vh}
-
-/* ── Header ── */
-.hdr{
-  display:flex;align-items:center;gap:20px;
-  padding:12px 28px;
-  background:rgba(0,0,0,.45);
-  border-bottom:1px solid var(--border);
-  backdrop-filter:blur(16px);
-  flex-shrink:0;
-}
-.hdr-logo{width:48px;height:48px;object-fit:contain;border-radius:10px;
-  box-shadow:0 0 20px rgba(242,184,48,.25)}
+/* header */
+.hdr{height:var(--hdr-h);flex-shrink:0;display:flex;align-items:center;gap:16px;
+  padding:0 24px;background:rgba(0,0,0,.45);border-bottom:1px solid var(--border);backdrop-filter:blur(14px)}
+.hdr-logo{width:42px;height:42px;object-fit:contain;border-radius:9px;box-shadow:0 0 18px rgba(242,184,48,.22)}
 .hdr-school{flex:1;text-align:center}
-.hdr-school h1{font-size:22px;font-weight:900;letter-spacing:-.3px;
-  background:linear-gradient(90deg,#fff 0%,var(--gold) 100%);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.hdr-school p{font-size:12px;color:var(--muted);margin-top:2px}
-.hdr-clock{min-width:170px;text-align:left}
-.hdr-time{font-size:36px;font-weight:900;color:var(--gold);font-variant-numeric:tabular-nums;line-height:1;
-  text-shadow:0 0 20px rgba(242,184,48,.4)}
-.hdr-date{font-size:11px;color:var(--muted);margin-top:3px}
+.hdr-school h1{font-size:19px;font-weight:900;
+  background:linear-gradient(90deg,#fff,var(--gold));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hdr-school p{font-size:10px;color:var(--muted);margin-top:1px}
+.hdr-clock{min-width:150px;text-align:left}
+.hdr-time{font-size:30px;font-weight:900;color:var(--gold);font-variant-numeric:tabular-nums;line-height:1;
+  text-shadow:0 0 18px rgba(242,184,48,.35)}
+.hdr-date{font-size:10px;color:var(--muted);margin-top:2px}
 
-/* ── Stats bar ── */
-.stats-row{
-  display:flex;gap:10px;padding:10px 24px;
-  background:rgba(0,0,0,.25);border-bottom:1px solid var(--border);
-  flex-shrink:0;
-}
-.stat{
-  flex:1;display:flex;align-items:center;gap:10px;
-  background:var(--glass);border:1px solid var(--border);
-  border-radius:12px;padding:10px 14px;
-  transition:transform .3s;
-}
-.stat:hover{transform:translateY(-1px)}
-.stat-icon{font-size:22px;flex-shrink:0}
-.stat-val{font-size:24px;font-weight:900;line-height:1}
-.stat-lbl{font-size:11px;color:var(--muted);margin-top:1px}
+/* stats */
+.stats-row{height:var(--stats-h);flex-shrink:0;display:flex;gap:8px;align-items:center;
+  padding:0 18px;background:rgba(0,0,0,.22);border-bottom:1px solid var(--border)}
+.stat{flex:1;display:flex;align-items:center;gap:8px;background:var(--glass);
+  border:1px solid var(--border);border-radius:11px;padding:7px 12px;height:44px}
+.stat-icon{font-size:17px;flex-shrink:0}
+.stat-val{font-size:19px;font-weight:900;line-height:1}
+.stat-lbl{font-size:9px;color:var(--muted);margin-top:1px}
 
-/* ── Overall progress ── */
-.prog-wrap{padding:8px 24px;flex-shrink:0}
-.prog-track{height:6px;background:rgba(255,255,255,.08);border-radius:99px;overflow:hidden;position:relative}
-.prog-fill{
-  height:100%;border-radius:99px;
-  background:linear-gradient(90deg,#3B82F6,#8B5CF6,var(--gold));
-  background-size:200%;
-  animation:gradShift 4s linear infinite;
-  transition:width 1.4s cubic-bezier(.4,0,.2,1);
-}
-@keyframes gradShift{0%{background-position:0%}100%{background-position:200%}}
-.prog-labels{display:flex;justify-content:space-between;font-size:11px;
-  color:var(--muted);margin-bottom:5px}
-.prog-pct{font-size:13px;font-weight:800;color:var(--gold)}
+/* progress */
+.prog-wrap{height:var(--prog-h);flex-shrink:0;display:flex;align-items:center;gap:12px;
+  padding:0 18px;background:rgba(0,0,0,.15);border-bottom:1px solid var(--border)}
+.prog-lbl{font-size:11px;color:var(--muted);white-space:nowrap}
+.prog-track{flex:1;height:6px;background:rgba(255,255,255,.07);border-radius:99px;overflow:hidden}
+.prog-fill{height:100%;border-radius:99px;
+  background:linear-gradient(90deg,#3B82F6,#8B5CF6,var(--gold));background-size:200%;
+  animation:gShift 3.5s linear infinite;transition:width 1.4s cubic-bezier(.4,0,.2,1)}
+@keyframes gShift{0%{background-position:0%}100%{background-position:200%}}
+.prog-pct{font-size:13px;font-weight:900;color:var(--gold);min-width:38px;text-align:left}
 
-/* ── Main columns ── */
-.cols{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:0;overflow:hidden}
+/* cols */
+.cols{flex:1;display:grid;grid-template-columns:1fr 1fr;overflow:hidden;height:var(--cols-h)}
+.panel{padding:10px 14px;overflow:hidden;border-left:1px solid var(--border);
+  display:flex;flex-direction:column}
+.panel-hdr{display:flex;align-items:center;gap:9px;padding-bottom:7px;margin-bottom:8px;
+  border-bottom:1px solid var(--border);flex-shrink:0}
+.panel-hdr h2{font-size:14px;font-weight:800}
+.panel-badge{margin-right:auto;background:var(--glass);border:1px solid var(--faint);
+  border-radius:99px;padding:2px 9px;font-size:10px;color:var(--muted)}
+.panel-body{flex:1;overflow:hidden;display:flex;flex-direction:column;gap:6px}
 
-/* ── Panel ── */
-.panel{
-  padding:14px 20px;overflow-y:auto;
-  border-left:1px solid var(--border);
-}
-.panel::-webkit-scrollbar{width:3px}
-.panel::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:2px}
-.panel-hdr{
-  display:flex;align-items:center;gap:10px;
-  margin-bottom:12px;
-  padding-bottom:10px;
-  border-bottom:1px solid var(--border);
-}
-.panel-hdr h2{font-size:17px;font-weight:800}
-.panel-badge{
-  margin-right:auto;
-  background:var(--glass);border:1px solid var(--faint);
-  border-radius:99px;padding:3px 12px;font-size:12px;color:var(--muted)
-}
-
-/* ── Today card ── */
-.today-card{
-  background:var(--glass);border:1.5px solid var(--border);
-  border-radius:16px;padding:18px 20px;margin-bottom:12px;
-  border-right-width:5px;
-  transition:transform .3s,box-shadow .3s;
-  animation:slideIn .5s ease backwards;
-}
-.today-card:hover{transform:translateX(-3px);box-shadow:0 8px 32px rgba(0,0,0,.4)}
-@keyframes slideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
-.tc-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px}
-.tc-subject{font-size:24px;font-weight:900}
-.tc-grade{font-size:14px;color:var(--muted);margin-top:3px;font-weight:600}
-.tc-pct{font-size:30px;font-weight:900;line-height:1}
-.tc-bar{height:7px;background:rgba(255,255,255,.08);border-radius:99px;overflow:hidden;margin-bottom:12px}
+/* today card */
+.today-card{background:var(--glass);border:1.5px solid var(--border);border-radius:12px;
+  padding:10px 13px;flex:1;min-height:0;border-right-width:5px;
+  display:flex;flex-direction:column;justify-content:space-between;
+  animation:sIn .4s ease backwards}
+@keyframes sIn{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}
+.tc-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px}
+.tc-subject{font-size:17px;font-weight:900;line-height:1.2}
+.tc-grade{font-size:11px;color:var(--muted);margin-top:2px;font-weight:600}
+.tc-pct{font-size:22px;font-weight:900;line-height:1;flex-shrink:0}
+.tc-bar{height:5px;background:rgba(255,255,255,.07);border-radius:99px;overflow:hidden;margin-bottom:6px}
 .tc-bar-fill{height:100%;border-radius:99px;transition:width 1.2s cubic-bezier(.4,0,.2,1);
-  animation:pulse-glow 2s ease-in-out infinite}
-@keyframes pulse-glow{
-  0%,100%{filter:brightness(1)}
-  50%{filter:brightness(1.4)}
-}
-.tc-stages{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
-.tc-stage-pill{
-  border-radius:99px;padding:4px 11px;font-size:12px;font-weight:600;
-  transition:transform .2s;
-}
-.tc-stage-pill.active{font-weight:900;transform:scale(1.05);
-  box-shadow:0 2px 12px rgba(0,0,0,.3)}
-.tc-meta{display:flex;gap:14px;font-size:13px;color:var(--muted);flex-wrap:wrap;align-items:center}
-.tc-status{
-  margin-right:auto;border-radius:8px;padding:3px 10px;
-  font-size:12px;font-weight:800;
-}
-.done-badge{
-  display:flex;align-items:center;justify-content:center;
-  width:50px;height:50px;border-radius:50%;background:#10B981;
-  font-size:24px;
-  animation:pop .4s cubic-bezier(.68,-.55,.27,1.55);
-}
+  animation:glow 2s ease-in-out infinite}
+@keyframes glow{0%,100%{filter:brightness(1)}50%{filter:brightness(1.45)}}
+.tc-stages{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:5px}
+.tc-pill{border-radius:99px;padding:3px 8px;font-size:10px;font-weight:600}
+.tc-pill.active{font-weight:900;transform:scale(1.06)}
+.tc-meta{display:flex;gap:8px;font-size:10px;color:var(--muted);flex-wrap:wrap;align-items:center}
+.tc-status{margin-right:auto;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:800}
+.done-badge{width:40px;height:40px;border-radius:50%;background:#10B981;
+  display:flex;align-items:center;justify-content:center;font-size:19px;
+  animation:pop .4s cubic-bezier(.68,-.55,.27,1.55);flex-shrink:0}
 @keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
 
-/* ── Subject progress row ── */
-.subj-row{
-  background:var(--glass);border:1px solid var(--border);
-  border-radius:13px;padding:13px 16px;margin-bottom:9px;
-  border-right-width:4px;
-  animation:fadeUp .4s ease backwards;
-  transition:transform .2s,box-shadow .2s;
-}
-.subj-row:hover{transform:translateX(-2px);box-shadow:0 4px 20px rgba(0,0,0,.35)}
-@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-.sr-top{display:flex;align-items:center;gap:10px;margin-bottom:9px}
-.sr-name{flex:1;font-size:17px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sr-meta{font-size:11px;color:var(--muted);margin-top:1px}
-.sr-chip{border-radius:7px;padding:3px 10px;font-size:11px;font-weight:800;flex-shrink:0}
-.sr-bar{height:5px;background:rgba(255,255,255,.07);border-radius:99px;overflow:hidden;margin-bottom:7px}
+/* subject row */
+.subj-row{background:var(--glass);border:1px solid var(--border);border-radius:11px;
+  padding:8px 11px;flex:1;min-height:0;border-right-width:4px;
+  display:flex;flex-direction:column;justify-content:space-between;
+  animation:fUp .4s ease backwards}
+@keyframes fUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.sr-top{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.sr-name{flex:1;font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sr-meta{font-size:9px;color:var(--muted);margin-top:1px}
+.sr-chip{border-radius:6px;padding:2px 8px;font-size:9px;font-weight:800;flex-shrink:0}
+.sr-bar{height:4px;background:rgba(255,255,255,.07);border-radius:99px;overflow:hidden;margin-bottom:4px}
 .sr-fill{height:100%;border-radius:99px;transition:width 1.2s cubic-bezier(.4,0,.2,1)}
 .sr-dots{display:flex;gap:3px}
-.sr-dot{flex:1;height:4px;border-radius:2px;transition:background .4s}
+.sr-dot{flex:1;height:3px;border-radius:2px;transition:background .35s}
 
-/* ── Empty state ── */
-.empty-state{
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  height:100%;gap:12px;opacity:.3;
-}
-.empty-state .e-icon{font-size:56px}
-.empty-state p{font-size:18px;font-weight:700}
+/* empty */
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  flex:1;gap:8px;opacity:.3}
+.empty span{font-size:40px}.empty p{font-size:15px;font-weight:700}
 
-/* ── Ticker ── */
-.ticker{
-  display:flex;align-items:center;gap:10px;
-  padding:7px 24px;
-  background:rgba(242,184,48,.08);
-  border-top:1px solid rgba(242,184,48,.15);
-  flex-shrink:0;overflow:hidden;
-}
-.ticker-label{font-size:11px;font-weight:800;color:var(--gold);white-space:nowrap;
-  border:1px solid rgba(242,184,48,.3);border-radius:4px;padding:2px 8px}
-.ticker-track{flex:1;overflow:hidden;position:relative;height:20px}
-.ticker-inner{
-  display:flex;gap:40px;align-items:center;
-  white-space:nowrap;
-  animation:scroll-ticker 30s linear infinite;
-}
-@keyframes scroll-ticker{
-  0%{transform:translateX(0)}
-  100%{transform:translateX(-50%)}
-}
-.ticker-item{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
-.ticker-dot{width:6px;height:6px;border-radius:50%;display:inline-block}
+/* ticker */
+.ticker{height:var(--ticker-h);flex-shrink:0;display:flex;align-items:center;gap:10px;
+  padding:0 16px;background:rgba(242,184,48,.07);border-top:1px solid rgba(242,184,48,.13);overflow:hidden}
+.ticker-lbl{font-size:9px;font-weight:800;color:var(--gold);white-space:nowrap;
+  border:1px solid rgba(242,184,48,.3);border-radius:3px;padding:1px 6px}
+.ticker-track{flex:1;overflow:hidden}
+.ticker-inner{display:inline-flex;gap:28px;align-items:center;white-space:nowrap;
+  animation:tScroll 35s linear infinite}
+@keyframes tScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.t-item{font-size:10px;color:var(--muted);display:inline-flex;align-items:center;gap:4px}
+.t-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
 
-/* ── Refresh badge ── */
-.refresh{
-  position:fixed;bottom:12px;left:16px;
-  background:rgba(0,0,0,.6);border:1px solid var(--border);
-  border-radius:99px;padding:4px 12px;font-size:10px;color:var(--muted);
-  backdrop-filter:blur(8px);z-index:99;display:flex;align-items:center;gap:6px;
-}
-.refresh-dot{
-  width:6px;height:6px;border-radius:50%;background:var(--gold);
-  animation:blink 1.5s ease-in-out infinite;
-}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
-
-/* ── Scan pulse animation (new stage) ── */
-@keyframes stageChange{
-  0%{box-shadow:0 0 0 0 rgba(242,184,48,.7)}
-  70%{box-shadow:0 0 0 16px rgba(242,184,48,0)}
-  100%{box-shadow:0 0 0 0 rgba(242,184,48,0)}
-}
-.stage-change{animation:stageChange .8s ease 3}
+/* refresh */
+.rbadge{position:fixed;bottom:8px;left:12px;z-index:99;background:rgba(0,0,0,.55);
+  border:1px solid var(--border);border-radius:99px;padding:3px 10px;font-size:10px;
+  color:var(--muted);backdrop-filter:blur(8px);display:flex;align-items:center;gap:5px}
+.rdot{width:5px;height:5px;border-radius:50%;background:var(--gold);
+  animation:blink 1.5s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.1}}
 </style>
 </head>
 <body>
-
-<!-- animated bg -->
-<div class="particles" id="particles"></div>
-
+<div class="particles" id="parts"></div>
 <div class="shell">
-
-  <!-- ── Header ── -->
   <div class="hdr">
-    <img id="logo" src="" class="hdr-logo" alt="شعار"/>
-    <div class="hdr-school">
-      <h1 id="schoolName"></h1>
-      <p>لوحة متابعة سير الاختبارات الإلكترونية</p>
-    </div>
-    <div class="hdr-clock">
-      <div class="hdr-time" id="clock">--:--</div>
-      <div class="hdr-date" id="dateLbl"></div>
-    </div>
+    <img id="logo" src="" class="hdr-logo"/>
+    <div class="hdr-school"><h1 id="sName"></h1><p>لوحة متابعة سير الاختبارات الإلكترونية</p></div>
+    <div class="hdr-clock"><div class="hdr-time" id="clk">--:--</div><div class="hdr-date" id="dLbl"></div></div>
   </div>
-
-  <!-- ── Stats row ── -->
   <div class="stats-row" id="statsRow"></div>
-
-  <!-- ── Overall progress ── -->
   <div class="prog-wrap">
-    <div class="prog-labels">
-      <span>نسبة الإنجاز الكلية</span>
-      <span class="prog-pct" id="pctLbl">0%</span>
-    </div>
-    <div class="prog-track">
-      <div class="prog-fill" id="progFill" style="width:0%"></div>
-    </div>
+    <span class="prog-lbl">نسبة الإنجاز الكلية</span>
+    <div class="prog-track"><div class="prog-fill" id="pFill" style="width:0%"></div></div>
+    <span class="prog-pct" id="pPct">0%</span>
   </div>
-
-  <!-- ── Columns ── -->
   <div class="cols">
-    <div class="panel" id="todayPanel"></div>
-    <div class="panel" id="subjPanel"></div>
+    <div class="panel" id="todayP"></div>
+    <div class="panel" id="subjP"></div>
   </div>
-
-  <!-- ── Ticker ── -->
-  <div class="ticker">
-    <span class="ticker-label">📡 مباشر</span>
-    <div class="ticker-track">
-      <div class="ticker-inner" id="ticker"></div>
-    </div>
-  </div>
-
+  <div class="ticker"><span class="ticker-lbl">📡 مباشر</span>
+    <div class="ticker-track"><div class="ticker-inner" id="tkr"></div></div></div>
 </div>
-
-<div class="refresh">
-  <div class="refresh-dot"></div>
-  يتحدث خلال <strong id="cd">30</strong> ث
-</div>
-
-<scr` + `ipt>
-// ─── Data ───────────────────────────────────────
-const D = ${DATA};
-const COLORS = D.STAGE_COLORS;
-const sc = i => COLORS[i % COLORS.length];
-
-// ─── Init ────────────────────────────────────────
-document.getElementById('logo').src = D.LOGO_SRC;
-document.getElementById('schoolName').textContent = D.schoolName;
-
-// ─── Particles ──────────────────────────────────
-(function spawnParticles(){
-  const container = document.getElementById('particles');
-  const sizes  = [4,5,6,8,10,12];
-  const colors = ['#3B82F6','#8B5CF6','#F2B830','#10B981','#F97316','#06B6D4'];
-  for(let i=0;i<35;i++){
-    const el=document.createElement('div');
-    el.className='particle';
-    const sz=sizes[Math.floor(Math.random()*sizes.length)];
-    el.style.cssText=\`
-      width:\${sz}px;height:\${sz}px;
-      left:\${Math.random()*100}%;
-      background:\${colors[Math.floor(Math.random()*colors.length)]};
-      animation-duration:\${8+Math.random()*18}s;
-      animation-delay:\${Math.random()*20}s;
-    \`;
-    container.appendChild(el);
-  }
-})();
-
-// ─── Clock ──────────────────────────────────────
-function updateClock(){
+<div class="rbadge"><div class="rdot"></div>تحديث خلال <strong id="cd">30</strong> ث</div>
+\x3cscript\x3e
+const COLORS=['#3B82F6','#8B5CF6','#06B6D4','#F59E0B','#EF4444','#10B981','#F97316','#22C55E','#A855F7','#6366F1'];
+const sc=i=>COLORS[i%COLORS.length];
+function loadD(){try{const r=localStorage.getItem('__dashData');return r?JSON.parse(r):null;}catch(e){return null;}}
+function tick(){
   const n=new Date();
-  document.getElementById('clock').textContent=
-    n.toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-  document.getElementById('dateLbl').textContent=
-    n.toLocaleDateString('ar-SA',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  document.getElementById('clk').textContent=n.toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  document.getElementById('dLbl').textContent=n.toLocaleDateString('ar-SA',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
 }
-updateClock();
-setInterval(updateClock,1000);
-
-// ─── Helpers ────────────────────────────────────
-function pct(b){
-  if(!D.stages.length) return 0;
-  return b.stage<0?0:Math.round(((b.stage+1)/D.stages.length)*100);
-}
-function stageName(b){
-  return b.stage<0?'لم تبدأ':(D.stages[b.stage]||'—');
-}
-function isDone(b){ return b.stage===D.stages.length-1 && D.stages.length>0; }
-
-// ─── Stats row ──────────────────────────────────
-function renderStats(){
-  const s=D.stats;
+tick();setInterval(tick,1000);
+;(function(){const c=document.getElementById('parts'),pal=['#3B82F6','#8B5CF6','#F2B830','#10B981','#F97316'];
+for(let i=0;i<28;i++){const d=document.createElement('div');d.className='particle';
+const s=[5,7,9,11][i%4];Object.assign(d.style,{width:s+'px',height:s+'px',left:Math.random()*100+'%',
+background:pal[i%5],animationDuration:(9+Math.random()*16)+'s',animationDelay:(Math.random()*20)+'s'});c.appendChild(d);}})();
+function pct(b,st){return b.stage<0||!st.length?0:Math.round(((b.stage+1)/st.length)*100);}
+function sName(b,st){return b.stage<0?'لم تبدأ':(st[b.stage]||'—');}
+function isDone(b,st){return st.length>0&&b.stage===st.length-1;}
+function render(){
+  const D=loadD();
+  if(!D){document.getElementById('sName').textContent='لا توجد بيانات';return;}
+  const bu=D.bundles||[],st=D.stages||[],today=new Date().toISOString().slice(0,10);
+  document.getElementById('logo').src=D.LOGO_SRC;
+  document.getElementById('sName').textContent=D.schoolName;
+  const total=bu.length,done=bu.filter(b=>isDone(b,st)).length,
+        inP=bu.filter(b=>b.stage>=0&&!isDone(b,st)).length,
+        newB=bu.filter(b=>b.stage<0).length,
+        papers=bu.reduce((a,b)=>a+b.count,0),
+        ovPct=total?Math.round((done/total)*100):0;
   document.getElementById('statsRow').innerHTML=\`
-    <div class="stat">
-      <span class="stat-icon">📚</span>
-      <div><div class="stat-val" style="color:#3B82F6">\${s.totalBundles}</div><div class="stat-lbl">إجمالي المظاريف</div></div>
-    </div>
-    <div class="stat">
-      <span class="stat-icon">✅</span>
-      <div><div class="stat-val" style="color:#10B981">\${s.doneBundles}</div><div class="stat-lbl">مكتملة</div></div>
-    </div>
-    <div class="stat">
-      <span class="stat-icon">⏳</span>
-      <div><div class="stat-val" style="color:#F59E0B">\${s.inProgBundles}</div><div class="stat-lbl">قيد التنفيذ</div></div>
-    </div>
-    <div class="stat">
-      <span class="stat-icon">🆕</span>
-      <div><div class="stat-val" style="color:#64748B">\${s.newBundles}</div><div class="stat-lbl">جديدة</div></div>
-    </div>
-    <div class="stat">
-      <span class="stat-icon">📄</span>
-      <div><div class="stat-val" style="color:#8B5CF6">\${s.totalPapers}</div><div class="stat-lbl">إجمالي الأوراق</div></div>
-    </div>
-  \`;
-}
-renderStats();
-
-// ─── Overall progress ───────────────────────────
-setTimeout(()=>{
-  document.getElementById('progFill').style.width=D.stats.overallPct+'%';
-  document.getElementById('pctLbl').textContent=D.stats.overallPct+'%';
-},200);
-
-// ─── Today Panel ────────────────────────────────
-function renderToday(){
-  const today=D.bundles.filter(b=>b.examDate===D.todayISO);
-  const el=document.getElementById('todayPanel');
-
-  let hdr=\`<div class="panel-hdr">
-    <span style="font-size:22px">📅</span>
-    <h2>اختبارات اليوم</h2>
-    <span class="panel-badge">\${today.length} مادة</span>
-  </div>\`;
-
-  if(today.length===0){
-    el.innerHTML=hdr+\`<div class="empty-state"><div class="e-icon">📅</div><p>لا توجد اختبارات مجدولة اليوم</p></div>\`;
-    return;
+    <div class="stat"><span class="stat-icon">📚</span><div><div class="stat-val" style="color:#3B82F6">\${total}</div><div class="stat-lbl">إجمالي المظاريف</div></div></div>
+    <div class="stat"><span class="stat-icon">✅</span><div><div class="stat-val" style="color:#10B981">\${done}</div><div class="stat-lbl">مكتملة</div></div></div>
+    <div class="stat"><span class="stat-icon">⏳</span><div><div class="stat-val" style="color:#F59E0B">\${inP}</div><div class="stat-lbl">قيد التنفيذ</div></div></div>
+    <div class="stat"><span class="stat-icon">🆕</span><div><div class="stat-val" style="color:#64748B">\${newB}</div><div class="stat-lbl">جديدة</div></div></div>
+    <div class="stat"><span class="stat-icon">📄</span><div><div class="stat-val" style="color:#8B5CF6">\${papers}</div><div class="stat-lbl">إجمالي الأوراق</div></div></div>\`;
+  setTimeout(()=>{document.getElementById('pFill').style.width=ovPct+'%';document.getElementById('pPct').textContent=ovPct+'%';},150);
+  const todayB=bu.filter(b=>b.examDate===today),tEl=document.getElementById('todayP');
+  if(!todayB.length){
+    tEl.innerHTML=\`<div class="panel-hdr"><span style="font-size:18px">📅</span><h2>اختبارات اليوم</h2><span class="panel-badge">0 مادة</span></div><div class="empty"><span>📅</span><p>لا توجد اختبارات اليوم</p></div>\`;
+  }else{
+    const cards=todayB.map((b,i)=>{
+      const p=pct(b,st),col=b.stage<0?'#64748B':sc(b.stage),dn=isDone(b,st),sn=sName(b,st);
+      const pills=st.map((s,si)=>{const a=si===b.stage,ps=si<b.stage,bg=(a||ps)?sc(si):'rgba(255,255,255,.07)',tx=(a||ps)?'#fff':'rgba(255,255,255,.22)';
+        return \`<span class="tc-pill \${a?'active':''}" style="background:\${bg};color:\${tx}">\${s}</span>\`;}).join('');
+      return \`<div class="today-card" style="border-right-color:\${col};animation-delay:\${i*90}ms">
+        <div class="tc-top"><div><div class="tc-subject">\${b.subject}</div>\${b.grade?\`<div class="tc-grade">\${b.grade}</div>\`:''}</div>
+          \${dn?\`<div class="done-badge">✅</div>\`:\`<div class="tc-pct" style="color:\${col}">\${p}%</div>\`}</div>
+        <div class="tc-bar"><div class="tc-bar-fill" style="background:\${col};width:\${p}%"></div></div>
+        <div class="tc-stages">\${pills}</div>
+        <div class="tc-meta"><span>📄 \${b.count} ورقة</span>
+          \${b.examStart?\`<span>🕐 \${b.examStart}\${b.examEnd?' — '+b.examEnd:''}</span>\`:''}
+          \${b.examHall?\`<span>🏫 \${b.examHall}</span>\`:''}
+          <span class="tc-status" style="background:\${col}22;color:\${col};border:1px solid \${col}55">\${sn}</span></div></div>\`;}).join('');
+    tEl.innerHTML=\`<div class="panel-hdr"><span style="font-size:18px">📅</span><h2>اختبارات اليوم</h2><span class="panel-badge">\${todayB.length} مادة</span></div><div class="panel-body">\${cards}</div>\`;
   }
-
-  const cards=today.map((b,i)=>{
-    const p=pct(b);
-    const col=b.stage<0?'#64748B':sc(b.stage);
-    const done=isDone(b);
-    const delay=i*120;
-    const pills=D.stages.map((s,si)=>{
-      const active=si===b.stage, passed=si<b.stage;
-      const bg=(active||passed)?sc(si):'rgba(255,255,255,.07)';
-      const txt=(active||passed)?'#fff':'rgba(255,255,255,.3)';
-      return \`<span class="tc-stage-pill \${active?'active':''}" style="background:\${bg};color:\${txt}">\${s}</span>\`;
-    }).join('');
-
-    return \`<div class="today-card" style="border-right-color:\${col};animation-delay:\${delay}ms">
-      <div class="tc-top">
-        <div>
-          <div class="tc-subject">\${b.subject}</div>
-          \${b.grade?\`<div class="tc-grade">\${b.grade}</div>\`:''}
-        </div>
-        \${done
-          ?\`<div class="done-badge">✅</div>\`
-          :\`<div class="tc-pct" style="color:\${col}">\${p}%</div>\`}
-      </div>
-      <div class="tc-bar">
-        <div class="tc-bar-fill" style="background:\${col};width:\${p}%"></div>
-      </div>
-      <div class="tc-stages">\${pills}</div>
-      <div class="tc-meta">
-        <span>📄 \${b.count} ورقة</span>
-        \${b.examStart?\`<span>🕐 \${b.examStart}\${b.examEnd?' — '+b.examEnd:''}</span>\`:''}
-        \${b.examHall?\`<span>🏫 \${b.examHall}</span>\`:''}
-        <span class="tc-status" style="background:\${col}22;color:\${col};border:1px solid \${col}55">\${stageName(b)}</span>
-      </div>
-    </div>\`;
-  }).join('');
-
-  el.innerHTML=hdr+cards;
-}
-renderToday();
-
-// ─── Subjects Panel ─────────────────────────────
-function renderSubjects(){
-  const el=document.getElementById('subjPanel');
-
-  // group by subject
-  const map={};
-  D.bundles.forEach(b=>{
-    if(!map[b.subject]) map[b.subject]={subject:b.subject,bundles:[]};
-    map[b.subject].bundles.push(b);
-  });
-  const subjects=Object.values(map);
-
-  let hdr=\`<div class="panel-hdr">
-    <span style="font-size:22px">📊</span>
-    <h2>سير ورقة الاختبار</h2>
-    <span class="panel-badge">\${subjects.length} مادة</span>
-  </div>\`;
-
-  if(subjects.length===0){
-    el.innerHTML=hdr+\`<div class="empty-state"><div class="e-icon">📊</div><p>لا توجد بيانات</div>\`;
-    return;
+  const map={};bu.forEach(b=>{if(!map[b.subject])map[b.subject]={subject:b.subject,bundles:[]};map[b.subject].bundles.push(b);});
+  const subjs=Object.values(map),sEl=document.getElementById('subjP');
+  if(!subjs.length){
+    sEl.innerHTML=\`<div class="panel-hdr"><span style="font-size:18px">📊</span><h2>سير ورقة الاختبار</h2><span class="panel-badge">0</span></div><div class="empty"><span>📊</span><p>لا توجد بيانات</p></div>\`;
+  }else{
+    const rows=subjs.map((sm,i)=>{
+      const bArr=sm.bundles,mx=Math.max(...bArr.map(b=>b.stage)),
+            p=st.length?Math.max(0,Math.round(((mx+1)/st.length)*100)):0,
+            col=mx<0?'#64748B':sc(mx),dn=bArr.every(b=>isDone(b,st))&&st.length>0,
+            sn=mx<0?'لم تبدأ':(st[mx]||'—'),tp=bArr.reduce((a,b)=>a+b.count,0);
+      const dots=st.map((s,si)=>\`<div class="sr-dot" title="\${s}" style="background:\${si<=mx?sc(si):'rgba(255,255,255,.07)'}"></div>\`).join('');
+      return \`<div class="subj-row" style="border-right-color:\${col};animation-delay:\${i*55}ms">
+        <div class="sr-top"><div style="flex:1;min-width:0"><div class="sr-name">\${sm.subject}</div><div class="sr-meta">\${bArr.length} مظروف · \${tp} ورقة</div></div>
+          \${dn?\`<span class="sr-chip" style="background:#10B98120;color:#10B981;border:1px solid #10B98144">✅ مكتمل</span>\`
+              :\`<span class="sr-chip" style="background:\${col}20;color:\${col};border:1px solid \${col}44">\${sn}</span>\`}</div>
+        <div class="sr-bar"><div class="sr-fill" style="background:\${col};width:\${p}%"></div></div>
+        <div class="sr-dots">\${dots}</div></div>\`;}).join('');
+    sEl.innerHTML=\`<div class="panel-hdr"><span style="font-size:18px">📊</span><h2>سير ورقة الاختبار</h2><span class="panel-badge">\${subjs.length} مادة</span></div><div class="panel-body">\${rows}</div>\`;
   }
-
-  const rows=subjects.map((sm,i)=>{
-    const bundles=sm.bundles;
-    const maxStage=Math.max(...bundles.map(b=>b.stage));
-    const p=D.stages.length>0?Math.max(0,Math.round(((maxStage+1)/D.stages.length)*100)):0;
-    const col=maxStage<0?'#64748B':sc(maxStage);
-    const done=bundles.every(b=>b.stage===D.stages.length-1)&&D.stages.length>0;
-    const sName=maxStage<0?'لم تبدأ':(D.stages[maxStage]||'—');
-    const papers=bundles.reduce((a,b)=>a+b.count,0);
-    const delay=i*80;
-
-    const dots=D.stages.map((s,si)=>{
-      const filled=si<=maxStage;
-      return \`<div class="sr-dot" title="\${s}" style="background:\${filled?sc(si):'rgba(255,255,255,.08)'}"></div>\`;
-    }).join('');
-
-    return \`<div class="subj-row" style="border-right-color:\${col};animation-delay:\${delay}ms">
-      <div class="sr-top">
-        <div style="flex:1;min-width:0">
-          <div class="sr-name">\${sm.subject}</div>
-          <div class="sr-meta">\${bundles.length} مظروف · \${papers} ورقة</div>
-        </div>
-        \${done
-          ?\`<span class="sr-chip" style="background:#10B98122;color:#10B981;border:1px solid #10B98155">✅ مكتمل</span>\`
-          :\`<span class="sr-chip" style="background:\${col}22;color:\${col};border:1px solid \${col}55">\${sName}</span>\`}
-      </div>
-      <div class="sr-bar"><div class="sr-fill" style="background:\${col};width:\${p}%"></div></div>
-      <div class="sr-dots">\${dots}</div>
-    </div>\`;
-  }).join('');
-
-  el.innerHTML=hdr+rows;
+  const tItems=bu.map(b=>{const col=b.stage<0?'#64748B':sc(b.stage);
+    return \`<span class="t-item"><span class="t-dot" style="background:\${col}"></span><strong>\${b.subject}</strong>\${b.grade?' ('+b.grade+')':''} — \${sName(b,st)} · \${b.count} ورقة</span><span style="color:rgba(255,255,255,.1)">◆</span>\`;}).join('');
+  document.getElementById('tkr').innerHTML=tItems+tItems;
 }
-renderSubjects();
-
-// ─── Ticker ─────────────────────────────────────
-function renderTicker(){
-  const items=D.bundles.map(b=>{
-    const col=b.stage<0?'#64748B':sc(b.stage);
-    const sn=stageName(b);
-    return \`<span class="ticker-item">
-      <span class="ticker-dot" style="background:\${col}"></span>
-      <strong>\${b.subject}</strong>
-      \${b.grade?'('+b.grade+')':''}
-      — \${sn}
-      · \${b.count} ورقة
-    </span>
-    <span style="color:rgba(255,255,255,.15)">◆</span>\`;
-  }).join('');
-  // duplicate for seamless loop
-  const inner=document.getElementById('ticker');
-  inner.innerHTML=items+items;
-}
-renderTicker();
-
-// ─── Countdown & auto-reload ─────────────────────
-let countdown=30;
+render();
+let cd=30;
 const cdEl=document.getElementById('cd');
-const cdTimer=setInterval(()=>{
-  countdown--;
-  if(cdEl) cdEl.textContent=countdown;
-  if(countdown<=0){
-    clearInterval(cdTimer);
-    window.location.reload();
-  }
-},1000);
-
-// ─── Smooth stage-change highlight ───────────────
-// Watches for any DOM changes → pulses newly updated cards
-let lastSnapshot=JSON.stringify(D.bundles.map(b=>b.stage));
-function checkChanges(){
-  // In a real scenario this would poll the server;
-  // here we just refresh via countdown
-}
-</scr` + `ipt>
-</body>
-</html>`);
+setInterval(()=>{cd--;if(cdEl)cdEl.textContent=cd;if(cd<=0){cd=30;render();}},1000);
+\x3c/script\x3e
+</body></html>`);
   win.document.close();
 }
+
+// تحديث localStorage تلقائياً عند أي حفظ
+const _origSS = saveState;
+function saveState(){_origSS();_saveDashData();}
+
 
 // INIT
 // ═══════════════════════════════════════════════
