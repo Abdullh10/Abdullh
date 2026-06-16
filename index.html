@@ -3767,10 +3767,10 @@ function renderCtrlMinutes(el) {
               <th style="padding:10px 4px;width:36px"></th>
             </tr>
           </thead>
-          <tbody>${rowsHtml}</tbody>
+          <tbody id="minutesRowsBody">${rowsHtml}</tbody>
         </table>
       </div>
-      <button class="btn btn-gold btn-sm" onclick="state.minutesData.forms[${fi}].rows.push({subject:'',grade:'',time:'',teacherName:'',notes:'',sig:''});saveMinutes();renderCtrlMinutes(document.getElementById('pageContent'))">+ إضافة مادة</button>
+      <button class="btn btn-gold btn-sm" id="addRowBtn" onclick="addMinutesRow(${fi})">+ إضافة مادة</button>
     </div>
 
     <!-- جدول أعضاء اللجنة -->
@@ -3829,6 +3829,71 @@ function renderCtrlMinutes(el) {
     // Restore all selects via ID matching
     restoreAllMinutesSelects(fi);
   },80);
+}
+
+function addMinutesRow(fi) {
+  const form = state.minutesData.forms[fi];
+  const newIdx = form.rows.length;
+  form.rows.push({subject:'', grade:'', time:'', teacherName:'', notes:'', sig:''});
+  saveMinutes();
+
+  const subjectOpts = state.subjects.map(s=>`<option value="${s}">${s}</option>`).join("");
+  const gradeOpts   = state.grades.map(g=>`<option value="${g}">${g}</option>`).join("");
+  const teacherOpts = TEACHERS_LIST.map(t=>`<option value="${t}">${t}</option>`).join("");
+
+  const tbody = document.querySelector("#minutesRowsBody");
+  if(!tbody){ renderCtrlMinutes(document.getElementById('pageContent')); return; }
+
+  const tr = document.createElement("tr");
+  tr.style.borderBottom = "1px solid var(--border)";
+  tr.id = `minutesRow${newIdx}`;
+  tr.innerHTML = `
+    <td style="padding:8px 6px;text-align:center;color:var(--muted);font-weight:700;background:var(--bg);width:36px">${newIdx+1}</td>
+    <td style="padding:5px 4px;min-width:140px">
+      <select class="inp" style="font-size:12px;padding:5px 8px" onchange="state.minutesData.forms[${fi}].rows[${newIdx}].subject=this.value;saveMinutes()">
+        <option value="">-- اختر المادة --</option>${subjectOpts}
+      </select>
+    </td>
+    <td style="padding:5px 4px;min-width:120px">
+      <select class="inp" style="font-size:12px;padding:5px 8px" onchange="state.minutesData.forms[${fi}].rows[${newIdx}].grade=this.value;saveMinutes()">
+        <option value="">-- الصف --</option>${gradeOpts}
+      </select>
+    </td>
+    <td style="padding:5px 4px;min-width:90px">
+      <input type="time" class="inp" style="font-size:12px;padding:5px 7px;direction:ltr" onchange="state.minutesData.forms[${fi}].rows[${newIdx}].time=this.value;saveMinutes()"/>
+    </td>
+    <td style="padding:5px 4px;min-width:220px">
+      <select class="inp" style="font-size:12px;padding:5px 8px" onchange="state.minutesData.forms[${fi}].rows[${newIdx}].teacherName=this.value;saveMinutes()">
+        <option value="">-- اختر المعلم --</option>${teacherOpts}
+      </select>
+    </td>
+    <td style="padding:5px 4px;min-width:110px">
+      <input class="inp" style="font-size:12px;padding:5px 7px" placeholder="ملاحظات" oninput="state.minutesData.forms[${fi}].rows[${newIdx}].notes=this.value;saveMinutes()"/>
+    </td>
+    <td style="padding:5px 4px;text-align:center;min-width:170px">
+      <div style="border:1.5px solid var(--border);border-radius:7px;overflow:hidden;background:#fff;margin-bottom:4px">
+        <canvas id="sigRow${newIdx}" width="190" height="58" style="display:block;cursor:crosshair;touch-action:none;width:100%;max-width:190px"></canvas>
+      </div>
+      <div style="display:flex;gap:4px;justify-content:center">
+        <button id="sigRowClear${newIdx}" class="btn btn-outline btn-sm" style="font-size:10px;padding:3px 7px">مسح</button>
+        <button id="sigRowSave${newIdx}" class="btn btn-navy btn-sm" style="font-size:10px;padding:3px 7px">حفظ ✓</button>
+      </div>
+    </td>
+    <td style="padding:5px 4px;text-align:center;width:36px">
+      <button class="del-btn" title="حذف" onclick="
+        state.minutesData.forms[${fi}].rows.splice(${newIdx},1);
+        saveMinutes();
+        renderCtrlMinutes(document.getElementById('pageContent'))
+      ">✕</button>
+    </td>`;
+  tbody.appendChild(tr);
+
+  // Init the new canvas immediately
+  setTimeout(()=>{
+    initSigCanvas(`sigRow${newIdx}`,`sigRowClear${newIdx}`,`sigRowSave${newIdx}`,"row",newIdx,fi);
+    // scroll new row into view
+    tr.scrollIntoView({behavior:"smooth", block:"center"});
+  }, 40);
 }
 
 function restoreAllMinutesSelects(fi) {
