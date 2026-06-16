@@ -4666,14 +4666,23 @@ function _saveDashData() {
     schoolName: state.schoolName||"متابعة سير الاختبارات",
     bundles:    state.bundles||[],
     stages:     state.stages||[],
-    LOGO_SRC:   LOGO_SRC,
     savedAt:    Date.now(),
   };
   try { localStorage.setItem("__dashData", JSON.stringify(payload)); } catch(e){}
 }
 
+function _saveDashLogo() {
+  // الشعار يُحفظ مرة واحدة فقط (لا يتغير)
+  try {
+    if(!localStorage.getItem("__dashLogo")) {
+      localStorage.setItem("__dashLogo", LOGO_SRC);
+    }
+  } catch(e){}
+}
+
 function openExternalDashboard() {
   _saveDashData();
+  _saveDashLogo(); // حفظ الشعار مرة واحدة
   const win = window.open("","_blank","width=1920,height=1080");
   win.document.write(`<!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -4857,7 +4866,8 @@ function render(){
   const D=loadD();
   if(!D){document.getElementById('sName').textContent='لا توجد بيانات';return;}
   const bu=D.bundles||[],st=D.stages||[],today=new Date().toISOString().slice(0,10);
-  document.getElementById('logo').src=D.LOGO_SRC;
+  // الشعار يُقرأ من مفتاح منفصل لتجنب تضخيم البيانات
+  try{const logo=localStorage.getItem('__dashLogo');if(logo)document.getElementById('logo').src=logo;}catch(e){}
   document.getElementById('sName').textContent=D.schoolName;
   const total=bu.length,done=bu.filter(b=>isDone(b,st)).length,
         inP=bu.filter(b=>b.stage>=0&&!isDone(b,st)).length,
