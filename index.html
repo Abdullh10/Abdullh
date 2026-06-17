@@ -496,6 +496,20 @@ label.lbl{font-size:12px;color:var(--mid);display:block;margin-bottom:5px;font-w
     </div>
     <div id="loginErr" class="login-err" style="display:none"></div>
     <div class="login-field">
+      <label>نوع الحساب</label>
+      <div style="position:relative">
+        <span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:15px;color:var(--muted)">🏷️</span>
+        <select class="inp" id="loginRole" style="padding-right:38px;appearance:none;cursor:pointer">
+          <option value="" disabled selected>اختر نوع الحساب</option>
+          <option value="admin">مدير النظام</option>
+          <option value="controller">الكنترول</option>
+          <option value="monitor">مراقب اللجان</option>
+          <option value="notifier">مسؤول التنبيهات</option>
+          <option value="principal">مدير المدرسة</option>
+        </select>
+      </div>
+    </div>
+    <div class="login-field">
       <label>اسم المستخدم</label>
       <div style="position:relative">
         <span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:15px;color:var(--muted)">👤</span>
@@ -510,61 +524,6 @@ label.lbl{font-size:12px;color:var(--mid);display:block;margin-bottom:5px;font-w
       </div>
     </div>
     <button class="btn-cta" onclick="doLogin()">دخول إلى النظام <span>←</span></button>
-    <div style="display:flex;align-items:center;gap:10px;margin:22px 0 16px">
-      <div style="flex:1;height:1px;background:var(--border)"></div>
-      <span style="font-size:11px;color:var(--muted);font-weight:700;white-space:nowrap">أو اختر حسابك للدخول السريع</span>
-      <div style="flex:1;height:1px;background:var(--border)"></div>
-    </div>
-    <div class="demo-section" style="padding:0;background:none;border:none">
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <button onclick="quickLogin('admin','admin123')"
-          style="display:flex;align-items:center;gap:12px;padding:13px 15px;background:linear-gradient(135deg,#0B1D3A,#1D3561);border:none;border-radius:16px;cursor:pointer;width:100%;font-family:inherit" class="quick-acc-btn">
-          <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🔑</div>
-          <div style="flex:1;text-align:right">
-            <p style="color:#fff;font-weight:700;font-size:13px;margin:0">مدير النظام</p>
-            <p style="color:rgba(255,255,255,.5);font-size:11px;margin:0;font-family:monospace;direction:ltr">admin / admin123</p>
-          </div>
-          <span style="color:rgba(255,255,255,.35);font-size:18px">←</span>
-        </button>
-        <button onclick="quickLogin('ctrl','ctrl123')"
-          style="display:flex;align-items:center;gap:12px;padding:13px 15px;background:linear-gradient(135deg,#1E3A8A,#2563EB);border:none;border-radius:16px;cursor:pointer;width:100%;font-family:inherit" class="quick-acc-btn">
-          <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📋</div>
-          <div style="flex:1;text-align:right">
-            <p style="color:#fff;font-weight:700;font-size:13px;margin:0">الكنترول</p>
-            <p style="color:rgba(255,255,255,.5);font-size:11px;margin:0;font-family:monospace;direction:ltr">ctrl / ctrl123</p>
-          </div>
-          <span style="color:rgba(255,255,255,.35);font-size:18px">←</span>
-        </button>
-        <button onclick="quickLogin('monitor','mon123')"
-          style="display:flex;align-items:center;gap:12px;padding:13px 15px;background:linear-gradient(135deg,#831843,#9D174D);border:none;border-radius:16px;cursor:pointer;width:100%;font-family:inherit" class="quick-acc-btn">
-          <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">👁</div>
-          <div style="flex:1;text-align:right">
-            <p style="color:#fff;font-weight:700;font-size:13px;margin:0">مراقب اللجان</p>
-            <p style="color:rgba(255,255,255,.5);font-size:11px;margin:0;font-family:monospace;direction:ltr">monitor / mon123</p>
-          </div>
-          <span style="color:rgba(255,255,255,.35);font-size:18px">←</span>
-        </button>
-        <button onclick="quickLogin('notify','1234')"
-          style="display:flex;align-items:center;gap:12px;padding:13px 15px;background:linear-gradient(135deg,#5B21B6,#7C3AED);border:none;border-radius:16px;cursor:pointer;width:100%;font-family:inherit" class="quick-acc-btn">
-          <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📲</div>
-          <div style="flex:1;text-align:right">
-            <p style="color:#fff;font-weight:700;font-size:13px;margin:0">مسؤول التنبيهات</p>
-            <p style="color:rgba(255,255,255,.5);font-size:11px;margin:0;font-family:monospace;direction:ltr">notify / 1234</p>
-          </div>
-          <span style="color:rgba(255,255,255,.35);font-size:18px">←</span>
-        </button>
-        <button onclick="quickLogin('principal','prin123')"
-          style="display:flex;align-items:center;gap:12px;padding:13px 15px;background:linear-gradient(135deg,#065F46,#059669);border:none;border-radius:16px;cursor:pointer;width:100%;font-family:inherit" class="quick-acc-btn">
-          <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🏫</div>
-          <div style="flex:1;text-align:right">
-            <p style="color:#fff;font-weight:700;font-size:13px;margin:0">مدير المدرسة</p>
-            <p style="color:rgba(255,255,255,.5);font-size:11px;margin:0;font-family:monospace;direction:ltr">principal / prin123</p>
-          </div>
-          <span style="color:rgba(255,255,255,.35);font-size:18px">←</span>
-        </button>
-      </div>
-      <div id="demoBtns" style="display:none"></div>
-    </div>
   </div>
 </div>
 
@@ -1692,29 +1651,18 @@ async function _checkPassword(user, plainInput) {
   }
   return false;
 }
-async function quickLogin(username, password) {
-  var allUsers = (state.users && state.users.length > 0) ? state.users : [
-    {id:"U1",name:"مدير النظام",      username:"admin",     password:"admin123", role:"admin"},
-    {id:"U2",name:"الكنترول",         username:"ctrl",      password:"ctrl123",  role:"controller"},
-    {id:"U5",name:"مراقب اللجان",     username:"monitor",   password:"mon123",   role:"monitor"},
-    {id:"U3",name:"مسؤول التنبيهات", username:"notify",    password:"1234",     role:"notifier"},
-    {id:"U4",name:"مدير المدرسة",     username:"principal", password:"prin123",  role:"principal"},
-  ];
-  var found = null;
-  for(var i=0;i<allUsers.length;i++){
-    if(allUsers[i].username===username && await _checkPassword(allUsers[i], password)){ found=allUsers[i]; break; }
-  }
-  if(!found){ toast("حساب غير موجود","err"); return; }
-  try{ var sData=JSON.stringify({username:found.username,role:found.role,lastPage:null}); sessionStorage.setItem("examSession",sData); localStorage.setItem("examSession_backup",sData); }catch(e){}
-  enterShell(found);
-}
-
 async function doLogin() {
+  const role = document.getElementById("loginRole").value;
   const u = document.getElementById("loginUser").value.trim();
   const p = document.getElementById("loginPass").value;
-  let found = null;
-  for(const x of state.users) { if(x.username===u && await _checkPassword(x, p)) { found = x; break; } }
   const errEl = document.getElementById("loginErr");
+  if(!role) {
+    errEl.textContent="يرجى اختيار نوع الحساب أولاً";
+    errEl.style.display="block";
+    return;
+  }
+  let found = null;
+  for(const x of state.users) { if(x.username===u && x.role===role && await _checkPassword(x, p)) { found = x; break; } }
   if(found) {
     currentUser = found; errEl.style.display="none";
     try{ sessionStorage.removeItem("examSession"); localStorage.removeItem("examSession_backup"); }catch(e){}
@@ -1764,6 +1712,7 @@ function doLogout() {
   try{ sessionStorage.removeItem("examSession"); localStorage.removeItem("examSession_backup"); }catch(e){}
   document.getElementById("loginScreen").style.display="flex";
   document.getElementById("appShell").style.display="none";
+  document.getElementById("loginRole").value="";
   document.getElementById("loginUser").value="";
   document.getElementById("loginPass").value="";
   document.getElementById("loginErr").style.display="none";
