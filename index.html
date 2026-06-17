@@ -620,7 +620,7 @@ async function saveToCloud() {
     subjects:state.subjects, grades:state.grades,
     stages:state.stages, teachers:state.teachers,
     users:state.users, examSchedule:state.examSchedule||[], minutesData:state.minutesData||null, minutesArchive:state.minutesArchive||[], inbox:state.inbox||[], principalMessages:state.principalMessages||[],
-    monitorReports:state.monitorReports||[], monitorNotes:state.monitorNotes||[], monitorStudentObs:state.monitorStudentObs||[], monitorDailyReports:state.monitorDailyReports||[]
+    monitorReports:state.monitorReports||[], monitorNotes:state.monitorNotes||[], monitorStudentObs:state.monitorStudentObs||[], monitorDailyReports:state.monitorDailyReports||[], approvals:state.approvals||[]
   };
   await sbUpsert("settings", {id:"main", data:settings, updated_at:new Date().toISOString()});
   // Also save to localStorage as backup
@@ -646,7 +646,7 @@ async function loadFromCloud() {
     var rows = await sbGet("settings", {id:"main"});
     if(rows && rows[0] && rows[0].data) {
       var d = rows[0].data;
-      ["schoolName","adminPhone","subjects","grades","stages","teachers","users","examSchedule","minutesData","minutesArchive","inbox","principalMessages","monitorReports","monitorNotes","monitorStudentObs","monitorDailyReports"].forEach(function(k){
+      ["schoolName","adminPhone","subjects","grades","stages","teachers","users","examSchedule","minutesData","minutesArchive","inbox","principalMessages","monitorReports","monitorNotes","monitorStudentObs","monitorDailyReports","approvals"].forEach(function(k){
         if(d[k] !== undefined) state[k] = d[k];
       });
     }
@@ -756,6 +756,7 @@ let state = {
   monitorNotes: [],   // [{id,subject,grade,hall,date,note,savedAt,user}]
   monitorStudentObs: [], // [{id,targetType,name/teacherId,hall,obsType,note,savedAt}]
   monitorDailyReports: [], // daily committee reports
+  approvals: [], // [{id,docType,docId,title,subtitle,submittedBy,submittedAt,status,principalName,principalSig,decidedAt,rejectReason}]
 };
 
 let currentUser = null;
@@ -775,7 +776,7 @@ const PAGES = {
   admin:      [ {k:"admin_new", icon:"✦", label:"مظروف جديد"}, {k:"admin_list",icon:"📦",label:"المظاريف"}, {k:"settings",icon:"⚙",label:"الإعدادات"} ],
   controller: [ {k:"ctrl_scan",icon:"📡",label:"مسح الباركود"}, {k:"ctrl_list",icon:"📋",label:"المظاريف"}, {k:"ctrl_schedule",icon:"📅",label:"جدول الاختبارات"}, {k:"ctrl_report",icon:"📄",label:"تقارير PDF"}, {k:"ctrl_minutes",icon:"📝",label:"محضر فتح المظاريف"}, {k:"inbox",icon:"🔔",label:"تنبيهات"} ],
   notifier:   [ {k:"notif_send",icon:"💬",label:"إرسال تنبيه"}, {k:"notif_log",icon:"📜",label:"سجل التنبيهات"}, {k:"inbox",icon:"🔔",label:"تنبيهات"} ],
-  principal:  [ {k:"principal_report",icon:"📈",label:"التقارير"}, {k:"principal_compose",icon:"✉️",label:"إرسال رسالة"}, {k:"principal_sent",icon:"📤",label:"الرسائل المُرسَلة"} ],
+  principal:  [ {k:"principal_report",icon:"📈",label:"التقارير"}, {k:"principal_approvals",icon:"✅",label:"اعتماد المستندات"}, {k:"principal_archive",icon:"🗄",label:"الأرشيف النهائي"}, {k:"principal_compose",icon:"✉️",label:"إرسال رسالة"}, {k:"principal_sent",icon:"📤",label:"الرسائل المُرسَلة"} ],
   monitor:    [ {k:"monitor_committees",icon:"👁",label:"متابعة اللجان"}, {k:"monitor_papers",icon:"📄",label:"عد الأوراق"}, {k:"monitor_students",icon:"🧑‍🎓",label:"متابعة الطلاب"}, {k:"monitor_daily",icon:"📊",label:"تقرير يومي"}, {k:"monitor_pledge",icon:"📋",label:"التعهدات"}, {k:"monitor_reports",icon:"🗂",label:"تقارير المراقب"} ],
 };
 
@@ -1067,6 +1068,8 @@ function navigateTo(page) {
     case "ctrl_schedule":renderCtrlSchedule(el);  break;
     case "ctrl_report":  renderCtrlReport(el);    break;
     case "principal_report":    renderPrincipalReport(el);    break;
+    case "principal_approvals": renderPrincipalApprovals(el); break;
+    case "principal_archive":   renderPrincipalArchive(el);   break;
     case "principal_compose":   renderPrincipalCompose(el);   break;
     case "principal_sent":      renderPrincipalSent(el);      break;
     case "inbox":               renderInbox(el);              break;
@@ -2358,15 +2361,18 @@ function renderCtrlReport(el) {
         const dateStr = `${a.hijriDay||""} ${a.hijriDayNum?toArabicNum(a.hijriDayNum):""}/${a.hijriMonth||""}/${a.hijriYear||""}هـ`;
         const savedDate = new Date(a.savedAt).toLocaleString("ar-SA",{dateStyle:"short",timeStyle:"short"});
         const rowCount = (a.rows||[]).filter(r=>r.subject).length;
+        const appr = (state.approvals||[]).find(x=>x.docType==="minutes"&&x.docId===a.id);
+        const apprBadge = !appr?"":appr.status==="approved"?`<span style="background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700;padding:2px 9px;border-radius:99px">✅ معتمد من المدير</span>`:appr.status==="rejected"?`<span style="background:#FEE2E2;color:#991B1B;font-size:10px;font-weight:700;padding:2px 9px;border-radius:99px">✕ مرفوض</span>`:`<span style="background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700;padding:2px 9px;border-radius:99px">⏳ بانتظار اعتماد المدير</span>`;
         return `
         <div style="background:var(--bg);border-radius:10px;padding:13px 16px;margin-bottom:8px;border:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
           <div style="width:40px;height:40px;background:linear-gradient(135deg,var(--navy),var(--navy3));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">📝</div>
           <div style="flex:1;min-width:160px">
-            <p style="font-weight:800;color:var(--navy);font-size:13px;margin-bottom:2px">${a.label}</p>
+            <p style="font-weight:800;color:var(--navy);font-size:13px;margin-bottom:2px">${a.label} ${apprBadge}</p>
             <p style="font-size:11px;color:var(--muted)">${dateStr} · ${rowCount} مادة</p>
             <p style="font-size:10px;color:var(--faint)">حُفظ: ${savedDate}</p>
           </div>
           <div style="display:flex;gap:7px;flex-wrap:wrap">
+            ${!appr||appr.status==="rejected"?`<button class="btn btn-sm" style="background:#7C3AED;color:#fff" onclick="submitForApproval('minutes','${a.id}','${a.label}','${dateStr}')">📨 إرسال للاعتماد</button>`:""}
             <button class="btn btn-navy btn-sm" onclick="printArchivedMinutes(${i})">🖨️ طباعة PDF</button>
             <button class="btn btn-outline btn-sm" style="color:var(--red);border-color:var(--red)" onclick="if(confirm('حذف هذه النسخة؟')){state.minutesArchive.splice(${i},1);saveState();saveToCloud();renderCtrlReport(document.getElementById('pageContent'));toast('تم الحذف')}">✕ حذف</button>
           </div>
@@ -2415,6 +2421,12 @@ function renderCtrlReport(el) {
       }).join("")}`}
     </div>
   </div>`;
+}
+
+function printArchivedMinutesById(id) {
+  const idx = (state.minutesArchive||[]).findIndex(a=>a.id===id);
+  if(idx<0) { toast("النسخة غير موجودة","err"); return; }
+  printArchivedMinutes(idx);
 }
 
 function printArchivedMinutes(archiveIdx) {
@@ -3765,6 +3777,178 @@ function generateSubjectsPDF() {
   toast("تم فتح تقرير المواد ✅");
 }
 
+// ═══════════════════════════════════════════════
+// نظام اعتماد المستندات (الكنترول / المراقب ← مدير المدرسة)
+// ═══════════════════════════════════════════════
+const APPROVAL_DOC_LABELS = { minutes:"محضر فتح مظاريف", pledge:"تعهد / إقرار", daily:"تقرير يومي للمراقب" };
+const APPROVAL_DOC_ICONS  = { minutes:"📝", pledge:"📋", daily:"📊" };
+
+function submitForApproval(docType, docId, title, subtitle) {
+  if(!state.approvals) state.approvals=[];
+  const existing = state.approvals.find(a=>a.docType===docType && a.docId===docId);
+  if(existing && existing.status==="pending") { toast("المستند مُرسل مسبقاً وبانتظار الاعتماد","err"); return; }
+  if(existing) {
+    existing.status="pending"; existing.title=title; existing.subtitle=subtitle;
+    existing.submittedBy=currentUser.name; existing.submittedAt=nowISO();
+    existing.principalSig=""; existing.decidedAt=""; existing.rejectReason="";
+  } else {
+    state.approvals.push({
+      id:uid(), docType, docId, title, subtitle,
+      submittedBy:currentUser.name, submittedAt:nowISO(),
+      status:"pending", principalName:"", principalSig:"", decidedAt:"", rejectReason:""
+    });
+  }
+  // إشعار مدير المدرسة
+  if(!state.inbox) state.inbox=[];
+  state.inbox.push({ id:uid(), to:"principal", from:currentUser.name, type:"important",
+    title:"مستند جديد بانتظار الاعتماد", body:`${APPROVAL_DOC_LABELS[docType]||""}: ${title}`, ts:nowISO(), read:false });
+  saveState(); saveToCloud();
+  toast("✅ تم إرسال المستند لمدير المدرسة للاعتماد");
+  navigateTo(currentPage);
+}
+
+let _approvingId = null;
+
+function renderPrincipalApprovals(el) {
+  if(!state.approvals) state.approvals=[];
+  const pending = state.approvals.filter(a=>a.status==="pending").sort((a,b)=>new Date(b.submittedAt)-new Date(a.submittedAt));
+  const decided = state.approvals.filter(a=>a.status!=="pending").sort((a,b)=>new Date(b.decidedAt||b.submittedAt)-new Date(a.decidedAt||a.submittedAt)).slice(0,10);
+
+  el.innerHTML = `
+  <div class="page-wrap">
+
+  <div class="card" style="margin-bottom:14px">
+    <p class="card-title"><span class="ct-icon" style="background:#FEF3C7">⏳</span>مستندات بانتظار الاعتماد
+      <span style="margin-right:auto;background:#F59E0B;color:#fff;font-size:11px;font-weight:800;padding:2px 10px;border-radius:99px">${pending.length}</span>
+    </p>
+    ${pending.length===0
+      ?`<div class="empty"><span class="empty-icon">✅</span>لا توجد مستندات بانتظار الاعتماد حالياً</div>`
+      :`<div style="display:flex;flex-direction:column;gap:12px">
+        ${pending.map(a=>`
+        <div style="background:var(--bg);border-radius:12px;padding:14px 16px;border:1.5px solid var(--border)">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
+            <span style="font-size:20px">${APPROVAL_DOC_ICONS[a.docType]||"📄"}</span>
+            <div style="flex:1;min-width:140px">
+              <p style="font-weight:800;color:var(--navy);font-size:13px">${a.title}</p>
+              <p style="font-size:11px;color:var(--muted)">${a.subtitle||""} · مُرسل من: ${a.submittedBy} · ${fmt(a.submittedAt)}</p>
+            </div>
+            <span style="background:#DBEAFE;color:#1E40AF;font-size:10px;font-weight:700;padding:2px 9px;border-radius:99px">${APPROVAL_DOC_LABELS[a.docType]||a.docType}</span>
+          </div>
+          <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:${_approvingId===a.id?"10px":"0"}">
+            <button class="btn btn-navy btn-sm" onclick="viewApprovalDoc('${a.docType}','${a.docId}')">👁 عرض المستند</button>
+            <button class="btn btn-sm" style="background:#059669;color:#fff" onclick="_approvingId=_approvingId==='${a.id}'?null:'${a.id}';renderPrincipalApprovals(document.getElementById('pageContent'))">✅ اعتماد وتوقيع</button>
+            <button class="btn btn-outline btn-sm" style="color:var(--red);border-color:var(--red)" onclick="rejectDocument('${a.id}')">✕ رفض</button>
+          </div>
+          ${_approvingId===a.id?`
+          <div style="background:#fff;border-radius:10px;padding:12px;border:1.5px solid #05966930">
+            <p style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:8px">توقيع مدير المدرسة للاعتماد</p>
+            <canvas id="apprSigCanvas" width="280" height="80" style="border:1.5px solid var(--border);border-radius:9px;background:#fff;display:block;width:100%;max-width:320px;touch-action:none"></canvas>
+            <div style="display:flex;gap:7px;margin-top:8px">
+              <button class="btn btn-outline btn-sm" onclick="clearSigCanvas('apprSigCanvas')">🗑️ مسح</button>
+              <button class="btn btn-sm" style="background:#059669;color:#fff;flex:1" onclick="approveDocument('${a.id}')">💾 تأكيد الاعتماد</button>
+            </div>
+          </div>`:""}
+        </div>`).join("")}
+      </div>`}
+  </div>
+
+  ${decided.length>0?`
+  <div class="card">
+    <p class="card-title"><span class="ct-icon" style="background:#D1FAE5">📜</span>آخر القرارات</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${decided.map(a=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--bg);border-radius:9px;border:1px solid var(--border)">
+        <span style="font-size:16px">${APPROVAL_DOC_ICONS[a.docType]||"📄"}</span>
+        <div style="flex:1">
+          <p style="font-size:12px;font-weight:700;color:var(--navy)">${a.title}</p>
+          <p style="font-size:10px;color:var(--muted)">${a.status==="approved"?"اعتمد بتاريخ "+fmt(a.decidedAt):"رُفض: "+(a.rejectReason||"—")}</p>
+        </div>
+        <span style="font-size:10px;font-weight:800;color:${a.status==="approved"?"#059669":"#EF4444"}">${a.status==="approved"?"✅ معتمد":"✕ مرفوض"}</span>
+      </div>`).join("")}
+    </div>
+  </div>`:""}
+
+  </div>`;
+
+  if(_approvingId) setTimeout(()=>initSigCanvas("apprSigCanvas"),100);
+}
+
+function viewApprovalDoc(docType, docId) {
+  if(docType==="minutes") printArchivedMinutesById(docId);
+  else if(docType==="pledge") printMonitorReport(docId);
+  else if(docType==="daily") printDailyReport(docId);
+}
+
+function approveDocument(approvalId) {
+  const a = (state.approvals||[]).find(x=>x.id===approvalId);
+  if(!a) return;
+  const canvas = document.getElementById("apprSigCanvas");
+  const sig = canvas ? canvas.toDataURL() : "";
+  a.status="approved"; a.principalName=currentUser.name; a.principalSig=sig; a.decidedAt=nowISO();
+  // إشعار صاحب المستند
+  if(!state.inbox) state.inbox=[];
+  state.inbox.push({ id:uid(), to: a.docType==="minutes"?"controller":"monitor", from:"مدير المدرسة", type:"info",
+    title:"تم اعتماد مستندك", body:a.title, ts:nowISO(), read:false });
+  _approvingId=null;
+  saveState(); saveToCloud();
+  toast("✅ تم اعتماد المستند وأُرسل إشعار");
+  renderPrincipalApprovals(document.getElementById("pageContent"));
+}
+
+function rejectDocument(approvalId) {
+  const reason = prompt("سبب الرفض (اختياري):","");
+  if(reason===null) return;
+  const a = (state.approvals||[]).find(x=>x.id===approvalId);
+  if(!a) return;
+  a.status="rejected"; a.principalName=currentUser.name; a.decidedAt=nowISO(); a.rejectReason=reason||"";
+  if(!state.inbox) state.inbox=[];
+  state.inbox.push({ id:uid(), to: a.docType==="minutes"?"controller":"monitor", from:"مدير المدرسة", type:"urgent",
+    title:"تم رفض مستندك", body:a.title+(reason?" — "+reason:""), ts:nowISO(), read:false });
+  saveState(); saveToCloud();
+  toast("تم رفض المستند");
+  renderPrincipalApprovals(document.getElementById("pageContent"));
+}
+
+function renderPrincipalArchive(el) {
+  if(!state.approvals) state.approvals=[];
+  const approved = state.approvals.filter(a=>a.status==="approved").sort((a,b)=>new Date(b.decidedAt)-new Date(a.decidedAt));
+  const byType = {};
+  approved.forEach(a=>{ if(!byType[a.docType]) byType[a.docType]=[]; byType[a.docType].push(a); });
+
+  el.innerHTML = `
+  <div class="page-wrap">
+
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
+    ${["minutes","pledge","daily"].map(t=>`
+    <div style="background:linear-gradient(135deg,#1E40AF,#3B82F6);border-radius:14px;padding:14px;color:#fff;text-align:center">
+      <p style="font-size:26px;font-weight:900">${(byType[t]||[]).length}</p>
+      <p style="font-size:10px;opacity:.9;margin-top:2px">${APPROVAL_DOC_ICONS[t]} ${APPROVAL_DOC_LABELS[t]}</p>
+    </div>`).join("")}
+  </div>
+
+  <div class="card">
+    <p class="card-title"><span class="ct-icon" style="background:#D1FAE5">🗄</span>الأرشيف النهائي المعتمد
+      <span style="margin-right:auto;font-size:12px;font-weight:600;color:var(--muted)">${approved.length} مستند</span>
+    </p>
+    ${approved.length===0
+      ?`<div class="empty"><span class="empty-icon">🗄</span>لا توجد مستندات معتمدة بعد</div>`
+      :`<div style="display:flex;flex-direction:column;gap:8px">
+        ${approved.map(a=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--bg);border-radius:10px;border:1px solid var(--border)">
+          <span style="font-size:20px">${APPROVAL_DOC_ICONS[a.docType]||"📄"}</span>
+          <div style="flex:1;min-width:140px">
+            <p style="font-size:13px;font-weight:700;color:var(--navy)">${a.title}</p>
+            <p style="font-size:10px;color:var(--muted)">من: ${a.submittedBy} · اعتمد: ${fmt(a.decidedAt)} بواسطة ${a.principalName}</p>
+          </div>
+          ${a.principalSig?`<img src="${a.principalSig}" style="height:32px;border:1px solid var(--border);border-radius:5px;background:#fff" title="توقيع المدير"/>`:""}
+          <button class="btn btn-navy btn-sm" onclick="viewApprovalDoc('${a.docType}','${a.docId}')">🖨️ عرض/طباعة</button>
+        </div>`).join("")}
+      </div>`}
+  </div>
+
+  </div>`;
+}
+
 function generateIncompletePDF() {
   const incompleteBundles=state.bundles.filter(b=>b.stage<state.stages.length-1);
   const printDate=new Date().toLocaleDateString("ar-SA-u-ca-islamic-umalqura",{dateStyle:"full"});
@@ -4438,10 +4622,13 @@ function renderMonitorDaily(el) {
       :`<div style="display:flex;flex-direction:column;gap:10px">
         ${reports.map(r=>{
           const obsYes=(r.observations||[]).filter(o=>o.value==="yes");
+          const appr = (state.approvals||[]).find(x=>x.docType==="daily"&&x.docId===r.id);
+          const apprBadge = !appr?"":appr.status==="approved"?`<span style="background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700;padding:2px 9px;border-radius:99px">✅ معتمد</span>`:appr.status==="rejected"?`<span style="background:#FEE2E2;color:#991B1B;font-size:10px;font-weight:700;padding:2px 9px;border-radius:99px">✕ مرفوض</span>`:`<span style="background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700;padding:2px 9px;border-radius:99px">⏳ بانتظار اعتماد</span>`;
           return `<div style="background:var(--bg);border-radius:12px;padding:13px 15px;border:1.5px solid var(--border)">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
               <span style="font-weight:800;color:var(--navy);font-size:13px">📅 ${r.day} — ${inputDateToHijri(r.date)||r.date}</span>
               ${obsYes.length>0?`<span style="background:#FEE2E2;color:#991B1B;font-size:11px;font-weight:700;padding:2px 9px;border-radius:99px">⚠️ ${obsYes.length} ملاحظة</span>`:`<span style="background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700;padding:2px 9px;border-radius:99px">✅ بدون مخالفات</span>`}
+              ${apprBadge}
               <span style="font-size:11px;color:var(--muted);margin-right:auto">${r.monitorName||""}</span>
             </div>
             ${(r.rows||[]).length>0?`<div style="overflow-x:auto;margin-bottom:8px">
@@ -4464,6 +4651,7 @@ function renderMonitorDaily(el) {
             </div>`:""}
             ${obsYes.length>0?`<div style="margin-bottom:8px">${obsYes.map(o=>`<span style="display:inline-block;background:#FEE2E2;color:#991B1B;font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;margin:2px 2px 2px 0">⚠️ ${o.label}${o.note?" — "+o.note:""}</span>`).join("")}</div>`:""}
             <div style="display:flex;gap:8px;margin-top:8px">
+              ${!appr||appr.status==="rejected"?`<button class="btn btn-sm" style="background:#7C3AED;color:#fff" onclick="submitForApproval('daily','${r.id}','تقرير يومي — ${r.day}','${inputDateToHijri(r.date)||r.date}')">📨 اعتماد</button>`:""}
               <button class="btn btn-navy btn-sm" style="flex:1" onclick="printDailyReport('${r.id}')">🖨️ طباعة</button>
               <button class="btn btn-sm" style="background:var(--red);color:#fff" onclick="deleteDailyReport('${r.id}')">🗑️ حذف</button>
             </div>
@@ -5032,17 +5220,20 @@ function renderMonitorReports(el) {
           const icon = pf ? pf.icon : (r.type==="papers"?"📄":"📋");
           const label = r.pledgeTitle || (pf?pf.label:r.type);
           const stName = r.studentName || r.monitorName || "—";
+          const appr = (state.approvals||[]).find(x=>x.docType==="pledge"&&x.docId===r.id);
+          const apprBadge = !appr?"":appr.status==="approved"?`<span style="background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700;padding:2px 9px;border-radius:99px">✅ معتمد</span>`:appr.status==="rejected"?`<span style="background:#FEE2E2;color:#991B1B;font-size:10px;font-weight:700;padding:2px 9px;border-radius:99px">✕ مرفوض</span>`:`<span style="background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700;padding:2px 9px;border-radius:99px">⏳ بانتظار اعتماد</span>`;
           return `
           <div style="background:var(--bg);border-radius:12px;padding:13px 16px;margin-bottom:8px;border:1px solid var(--border);border-right:4px solid ${color}">
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
               <div style="width:40px;height:40px;background:${color}18;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;border:1px solid ${color}30">${icon}</div>
               <div style="flex:1;min-width:130px">
-                <p style="font-weight:800;color:var(--navy);font-size:13px;margin-bottom:2px">${label}</p>
+                <p style="font-weight:800;color:var(--navy);font-size:13px;margin-bottom:2px">${label} ${apprBadge}</p>
                 <p style="font-size:11px;color:var(--muted)">الطالب: ${stName}${r.grade?" · "+r.grade:""}${r.subject?" · "+r.subject:""}</p>
                 <p style="font-size:10px;color:var(--faint)">المراقب: ${r.monitorName||"—"} · ${fmt(r.savedAt)}</p>
               </div>
               ${r.sigStudent ? `<img src="${r.sigStudent}" style="height:36px;border:1px solid var(--border);border-radius:5px;object-fit:contain;background:#fff" title="توقيع الطالب"/>` : ""}
               <div style="display:flex;gap:6px;flex-wrap:wrap">
+                ${!appr||appr.status==="rejected"?`<button class="btn btn-sm" style="background:#7C3AED;color:#fff" onclick="submitForApproval('pledge','${r.id}','${label}','${stName}')">📨 اعتماد</button>`:""}
                 <button class="btn btn-navy btn-sm" onclick="printMonitorReport('${r.id}')">🖨️ PDF</button>
                 <button class="btn btn-outline btn-sm" style="color:var(--red);border-color:var(--red)" onclick="deleteMonitorReport('${r.id}')">✕</button>
               </div>
