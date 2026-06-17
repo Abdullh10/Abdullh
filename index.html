@@ -1646,7 +1646,24 @@ function renderLoginDemos() {
 }
 
 
-function quickLogin(username, password) {
+async function sha256Hex(str) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+function _looksHashed(pw) { return typeof pw==="string" && /^[a-f0-9]{64}$/i.test(pw); }
+// يدعم كلمات المرور المشفّرة (SHA-256) والقديمة النصية معاً، ويرقّي القديمة لمشفّرة تلقائياً عند أول نجاح
+async function _checkPassword(user, plainInput) {
+  if(_looksHashed(user.password)) {
+    return (await sha256Hex(plainInput)) === user.password;
+  }
+  if(user.password === plainInput) {
+    user.password = await sha256Hex(plainInput);
+    saveState(); if(typeof saveToCloud==="function") saveToCloud();
+    return true;
+  }
+  return false;
+}
+async function quickLogin(username, password) {
   var allUsers = (state.users && state.users.length > 0) ? state.users : [
     {id:"U1",name:"مدير النظام",      username:"admin",     password:"admin123", role:"admin"},
     {id:"U2",name:"الكنترول",         username:"ctrl",      password:"ctrl123",  role:"controller"},
@@ -1656,17 +1673,18 @@ function quickLogin(username, password) {
   ];
   var found = null;
   for(var i=0;i<allUsers.length;i++){
-    if(allUsers[i].username===username && allUsers[i].password===password){ found=allUsers[i]; break; }
+    if(allUsers[i].username===username && await _checkPassword(allUsers[i], password)){ found=allUsers[i]; break; }
   }
   if(!found){ toast("حساب غير موجود","err"); return; }
   try{ var sData=JSON.stringify({username:found.username,role:found.role,lastPage:null}); sessionStorage.setItem("examSession",sData); localStorage.setItem("examSession_backup",sData); }catch(e){}
   enterShell(found);
 }
 
-function doLogin() {
+async function doLogin() {
   const u = document.getElementById("loginUser").value.trim();
   const p = document.getElementById("loginPass").value;
-  const found = state.users.find(x=>x.username===u&&x.password===p);
+  let found = null;
+  for(const x of state.users) { if(x.username===u && await _checkPassword(x, p)) { found = x; break; } }
   const errEl = document.getElementById("loginErr");
   if(found) {
     currentUser = found; errEl.style.display="none";
@@ -3083,14 +3101,14 @@ function editUserCommittees(id) {
   toast("تم تحديث لجان المراقب ✅");
   renderSTabContent();
 }
-function addUser() {
+async function addUser() {
   const name=(document.getElementById("nu_name")||{value:""}).value.trim();
   const username=(document.getElementById("nu_user")||{value:""}).value.trim();
   const password=(document.getElementById("nu_pass")||{value:""}).value;
   const role=(document.getElementById("nu_role")||{value:""}).value;
   if(!name||!username||!password){ toast("أكمل البيانات","err"); return; }
   if(state.users.find(u=>u.username===username)){ toast("اسم المستخدم موجود مسبقاً","err"); return; }
-  const newUser = { id:"U"+uid(), name, username, password, role };
+  const newUser = { id:"U"+uid(), name, username, password: await sha256Hex(password), role };
   if(role==="monitor"){
     const raw=(document.getElementById("nu_committees")||{value:""}).value.trim();
     if(raw) newUser.assignedCommittees = raw.split(",").map(c=>c.trim()).filter(Boolean);
