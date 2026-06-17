@@ -68,14 +68,14 @@ body{font-family:'IBM Plex Sans Arabic',Arial,sans-serif;background:var(--bg);co
   background:#FF5A6E;box-shadow:0 0 0 4px #FF5A6E1f;
 }
 .login-icon{
-  width:72px;height:72px;border-radius:18px;
+  width:84px;height:84px;border-radius:20px;
   background:linear-gradient(135deg,var(--navy),var(--navy3));
   display:flex;align-items:center;justify-content:center;
-  margin:0 auto 14px;box-shadow:var(--sh3);
+  margin:0 auto 16px;box-shadow:var(--sh3);
   font-size:32px;
 }
-.login-logo h1{font-size:21px;font-weight:700;color:var(--navy);letter-spacing:-.3px}
-.login-logo p{font-size:12px;color:var(--muted);margin-top:5px;font-weight:400}
+.login-logo h1{font-size:22px;font-weight:800;color:var(--navy);letter-spacing:-.3px;line-height:1.35}
+.login-logo p{font-size:12.5px;color:var(--mid);margin-top:6px;font-weight:600}
 .login-err{background:var(--redBg);color:var(--red);border-radius:var(--r8);padding:10px 14px;font-size:12px;font-weight:500;margin-bottom:14px;border:1px solid #FECACA}
 .login-field{margin-bottom:14px}
 .login-field label{font-size:12px;color:var(--mid);display:block;margin-bottom:5px;font-weight:500}
@@ -490,19 +490,31 @@ label.lbl{font-size:12px;color:var(--mid);display:block;margin-bottom:5px;font-w
 <div id="loginScreen">
   <div class="login-card">
     <div class="login-logo">
-      <div class="login-icon" style="background:none;box-shadow:none;padding:4px"><img id="loginLogo" src="" alt="" style="width:100px;height:100px;object-fit:contain"/></div>
+      <div class="login-icon" style="background:none;box-shadow:none;padding:4px"><img id="loginLogo" src="" alt="" style="width:96px;height:96px;object-fit:contain"/></div>
       <h1 id="loginSchoolName">متابعة سير الاختبارات الإلكتروني</h1>
       <p>برمجة الأستاذ عبدالله حمدي</p>
     </div>
     <div id="loginErr" class="login-err" style="display:none"></div>
     <div class="login-field">
       <label>اسم المستخدم</label>
-      <input class="inp" id="loginUser" placeholder="أدخل اسم المستخدم" autocomplete="username"/>
+      <div style="position:relative">
+        <span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:15px;color:var(--muted)">👤</span>
+        <input class="inp" id="loginUser" placeholder="أدخل اسم المستخدم" autocomplete="username" style="padding-right:38px"/>
+      </div>
     </div>
     <div class="login-field">
-      <input class="inp" id="loginPass" placeholder="كلمة المرور" type="password" dir="ltr" autocomplete="current-password" style="margin-bottom:16px"/>
+      <label>كلمة المرور</label>
+      <div style="position:relative">
+        <span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:15px;color:var(--muted)">🔒</span>
+        <input class="inp" id="loginPass" placeholder="أدخل كلمة المرور" type="password" dir="ltr" autocomplete="current-password" style="margin-bottom:16px;padding-right:38px"/>
+      </div>
     </div>
     <button class="btn-cta" onclick="doLogin()">دخول إلى النظام <span>←</span></button>
+    <div style="display:flex;align-items:center;gap:10px;margin:22px 0 16px">
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+      <span style="font-size:11px;color:var(--muted);font-weight:700;white-space:nowrap">أو اختر حسابك للدخول السريع</span>
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+    </div>
     <div class="demo-section" style="padding:0;background:none;border:none">
       <div style="display:flex;flex-direction:column;gap:8px">
         <button onclick="quickLogin('admin','admin123')"
