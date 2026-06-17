@@ -2709,14 +2709,13 @@ function renderNotifAbsence(el) {
       <p style="font-size:12px;color:var(--muted);margin-bottom:10px">يمكنك تدوين ملاحظة سريعة هنا للمتابعة الداخلية بعد رصد الغياب في بوابة المتمم</p>
       <div style="display:flex;flex-direction:column;gap:8px">
         ${hijriPicker("ab_date")}
-        <div style="display:flex;gap:8px">
-          <select class="inp" id="ab_grade" style="flex:1">
-            <option value="">المرحلة</option>
-            ${state.grades.map(g=>`<option>${g}</option>`).join("")}
-          </select>
-          <input class="inp" id="ab_committee" placeholder="اللجنة / الفصل" style="flex:1">
+        <select class="inp" id="ab_committee" onchange="abRefreshStudentChecklist()">
+          <option value="">-- اختر اللجنة --</option>
+          ${_sdbCommittees().map(c=>`<option value="${c}">لجنة ${c}</option>`).join("")}
+        </select>
+        <div id="ab_studentsBox" style="border:1px solid var(--border);border-radius:10px;padding:10px;max-height:220px;overflow-y:auto">
+          <p style="font-size:12px;color:var(--muted);text-align:center;padding:8px">اختر اللجنة أولاً لعرض طلابها</p>
         </div>
-        <textarea class="inp" id="ab_names" rows="3" placeholder="أسماء الطلاب الغائبين (طالب في كل سطر)"></textarea>
         <input class="inp" id="ab_note" placeholder="ملاحظة (اختياري)">
         <button class="btn btn-navy btn-full" onclick="saveAbsenceLog()">💾 حفظ السجل</button>
       </div>
@@ -2744,14 +2743,29 @@ function renderNotifAbsence(el) {
 
   </div>`;
 }
+function abRefreshStudentChecklist() {
+  const committee = document.getElementById("ab_committee").value;
+  const box = document.getElementById("ab_studentsBox");
+  if(!committee) { box.innerHTML = `<p style="font-size:12px;color:var(--muted);text-align:center;padding:8px">اختر اللجنة أولاً لعرض طلابها</p>`; return; }
+  const students = (state.studentsDB||[]).filter(s=>s.committee===committee).sort((a,b)=>a.name.localeCompare(b.name));
+  if(students.length===0) { box.innerHTML = `<p style="font-size:12px;color:var(--muted);text-align:center;padding:8px">لا يوجد طلاب مسجلون في هذه اللجنة</p>`; return; }
+  box.innerHTML = students.map(s=>`
+    <label style="display:flex;align-items:center;gap:8px;padding:5px 2px;font-size:13px;cursor:pointer">
+      <input type="checkbox" class="ab_student_chk" value="${s.name}" data-grade="${s.grade||""}"> ${s.name}
+    </label>`).join("");
+}
 function saveAbsenceLog() {
-  const names = document.getElementById("ab_names").value.trim();
-  if(!names) { toast("أدخل أسماء الطلاب الغائبين","err"); return; }
+  const committee = document.getElementById("ab_committee").value;
+  if(!committee) { toast("اختر اللجنة أولاً","err"); return; }
+  const checked = Array.from(document.querySelectorAll(".ab_student_chk:checked"));
+  if(checked.length===0) { toast("اختر طالباً واحداً على الأقل","err"); return; }
+  const names = checked.map(c=>c.value).join("\n");
+  const grade = checked[0].dataset.grade || "";
   state.absenceLog.push({
     id: uid(),
     date: hijriVal("ab_date"),
-    grade: document.getElementById("ab_grade").value,
-    committee: document.getElementById("ab_committee").value.trim(),
+    grade,
+    committee,
     names,
     note: document.getElementById("ab_note").value.trim(),
     savedAt: nowISO(),
@@ -6000,8 +6014,8 @@ function renderMonitorStudents(el) {
   <div class="card" style="margin-bottom:14px">
     <p class="card-title"><span class="ct-icon" style="background:#DBEAFE">🧑‍🎓</span>تسجيل ملاحظة على طالب</p>
     <div class="g2" style="margin-bottom:10px">
-      <div><label class="lbl">اسم الطالب</label><input class="inp" id="sobs_name" placeholder="اسم الطالب كاملاً"/></div>
-      <div><label class="lbl">رقم اللجنة / القاعة</label><input class="inp" id="sobs_hall" placeholder="مثال: ٥" type="text"/></div>
+      <div><label class="lbl">رقم اللجنة / القاعة</label><select class="inp" id="sobs_hall" onchange="sobsRefreshStudentOptions()"><option value="">-- اختر اللجنة --</option>${_sdbCommittees().map(c=>`<option value="${c}">لجنة ${c}</option>`).join("")}</select></div>
+      <div><label class="lbl">اسم الطالب</label><select class="inp" id="sobs_name" onchange="sobsAutoGrade()" disabled><option value="">-- اختر اللجنة أولاً --</option></select></div>
     </div>
     <div class="g2" style="margin-bottom:10px">
       <div><label class="lbl">الصف</label>
@@ -6110,6 +6124,25 @@ function renderMonitorStudents(el) {
   </div>`;
 }
 
+function sobsRefreshStudentOptions() {
+  const committee = document.getElementById("sobs_hall").value;
+  const sel = document.getElementById("sobs_name");
+  if(!committee) {
+    sel.innerHTML = `<option value="">-- اختر اللجنة أولاً --</option>`;
+    sel.disabled = true;
+    return;
+  }
+  const students = (state.studentsDB||[]).filter(s=>s.committee===committee).sort((a,b)=>a.name.localeCompare(b.name));
+  sel.innerHTML = `<option value="">-- اختر الطالب --</option>` + students.map(s=>`<option value="${s.name}">${s.name}</option>`).join("");
+  sel.disabled = false;
+}
+function sobsAutoGrade() {
+  const committee = document.getElementById("sobs_hall").value;
+  const name = document.getElementById("sobs_name").value;
+  const student = (state.studentsDB||[]).find(s=>s.committee===committee && s.name===name);
+  const gradeSel = document.getElementById("sobs_grade");
+  if(student && student.grade && gradeSel) gradeSel.value = student.grade;
+}
 function saveStudentObs() {
   const name = (document.getElementById("sobs_name")||{}).value?.trim();
   const hall = (document.getElementById("sobs_hall")||{}).value?.trim();
@@ -6222,7 +6255,11 @@ function showPledgeForm(pledgeType) {
       <!-- بيانات الطالب -->
       <p style="font-size:12px;font-weight:800;color:var(--navy);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border)">📌 بيانات الطالب</p>
       <div class="g2" style="margin-bottom:10px">
-        <div><label class="lbl">اسم الطالب *</label><input class="inp" id="st_name" placeholder="الاسم الكامل"/></div>
+        <div><label class="lbl">اللجنة</label><select class="inp" id="st_committee" onchange="pledgeRefreshStudentOptions()"><option value="">-- اختر اللجنة --</option>${_sdbCommittees().map(c=>`<option value="${c}">لجنة ${c}</option>`).join("")}</select></div>
+        <div><label class="lbl">اسم الطالب *</label><select class="inp" id="st_student_select" onchange="pledgeApplyStudentSelection()" disabled><option value="">-- اختر اللجنة أولاً --</option></select></div>
+      </div>
+      <div class="g2" style="margin-bottom:10px">
+        <input type="hidden" id="st_name"/>
         <div><label class="lbl">السجل المدني</label><input class="inp" id="st_civil" placeholder="رقم السجل المدني" dir="ltr"/></div>
         <div><label class="lbl">رقم الجلوس</label><input class="inp" id="st_seat" placeholder="رقم الجلوس"/></div>
         <div><label class="lbl">الصف</label><select class="inp" id="st_grade"><option value="">-- اختر --</option>${gradeOptions}</select></div>
@@ -6279,6 +6316,28 @@ function showPledgeForm(pledgeType) {
   document.getElementById("pledgeFormContainer").scrollIntoView({behavior:"smooth",block:"start"});
 }
 
+function pledgeRefreshStudentOptions() {
+  const committee = document.getElementById("st_committee").value;
+  const sel = document.getElementById("st_student_select");
+  if(!committee) {
+    sel.innerHTML = `<option value="">-- اختر اللجنة أولاً --</option>`;
+    sel.disabled = true;
+    document.getElementById("st_name").value = "";
+    return;
+  }
+  const students = (state.studentsDB||[]).filter(s=>s.committee===committee).sort((a,b)=>a.name.localeCompare(b.name));
+  sel.innerHTML = `<option value="">-- اختر الطالب --</option>` + students.map(s=>`<option value="${s.id}">${s.name}</option>`).join("");
+  sel.disabled = false;
+}
+function pledgeApplyStudentSelection() {
+  const sid = document.getElementById("st_student_select").value;
+  const student = (state.studentsDB||[]).find(s=>s.id===sid);
+  document.getElementById("st_name").value = student ? student.name : "";
+  if(student) {
+    const civil = document.getElementById("st_civil"); if(civil) civil.value = student.sid||"";
+    const grade = document.getElementById("st_grade"); if(grade && student.grade) grade.value = student.grade;
+  }
+}
 function saveMonitorPledge(pledgeType) {
   const f = PLEDGE_FORMS.find(x=>x.key===pledgeType);
   if(!f) return;
