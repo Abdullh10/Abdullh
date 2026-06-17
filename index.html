@@ -3494,17 +3494,6 @@ function renderPrincipalReport(el) {
     </div>
   </div>
 
-  <!-- Principal Notes -->
-  <div class="card" style="margin-bottom:14px;border:2px solid var(--gold)">
-    <p class="card-title"><span class="ct-icon" style="background:#FEF3C7">📝</span>ملاحظات وتوجيهات مدير المدرسة</p>
-    <textarea id="principalNotesArea" class="inp" rows="4"
-      placeholder="اكتب ملاحظاتك وتوجيهاتك للكنترول أو مسؤول التنبيهات هنا..."
-      style="margin-bottom:10px">${state.principalNotes||""}</textarea>
-    <button class="btn btn-gold btn-full" onclick="
-      state.principalNotes=document.getElementById('principalNotesArea').value;
-      saveState();saveToCloud();toast('تم حفظ الملاحظات ✅')">💾 حفظ الملاحظات</button>
-  </div>
-
   <!-- Incomplete alert -->
   ${incompleteBundles.length>0?`
   <div class="card" style="margin-bottom:14px;border:2px solid var(--red)">
