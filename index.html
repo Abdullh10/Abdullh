@@ -774,9 +774,51 @@ const PAGES = {
 function uid()    { return Math.random().toString(36).slice(2,8).toUpperCase(); }
 function nowISO() { return new Date().toISOString(); }
 function fmt(iso) { try { return new Date(iso).toLocaleString("ar-SA-u-ca-islamic-umalqura",{dateStyle:"short",timeStyle:"short"}); } catch(e){ return iso; } }
-function fmtDate(dateStr) { try { if(!dateStr) return ""; const d=new Date(dateStr); if(isNaN(d)) return dateStr; return d.toLocaleDateString("ar-SA-u-ca-islamic-umalqura",{year:"numeric",month:"long",day:"numeric"}); } catch(e){ return dateStr; } }
-function todayHijri() { return new Date().toLocaleDateString("ar-SA-u-ca-islamic-umalqura",{year:"numeric",month:"long",day:"numeric"}); }
-function inputDateToHijri(val) { try { if(!val) return ""; return new Date(val).toLocaleDateString("ar-SA-u-ca-islamic-umalqura",{year:"numeric",month:"long",day:"numeric"}); } catch(e){ return val; } }
+
+// ── منظومة التاريخ الهجري ──────────────────────────
+const HIJRI_MONTHS = ["محرم","صفر","ربيع الأول","ربيع الثاني","جمادى الأولى","جمادى الثانية","رجب","شعبان","رمضان","شوال","ذو القعدة","ذو الحجة"];
+function _arNum(s){ return parseInt(String(s).replace(/[٠-٩]/g,d=>d.charCodeAt(0)-1632))||0; }
+function currentHijriParts(){
+  const n=new Date();
+  return { d:_arNum(n.toLocaleDateString("ar-SA-u-ca-islamic-umalqura",{day:"numeric"})),
+           m:_arNum(n.toLocaleDateString("ar-SA-u-ca-islamic-umalqura",{month:"numeric"})),
+           y:_arNum(n.toLocaleDateString("ar-SA-u-ca-islamic-umalqura",{year:"numeric"})) };
+}
+// أنشئ منتقي هجري (ثلاثة قوائم: يوم / شهر / سنة)
+function hijriPicker(id, existingVal){
+  const cur = currentHijriParts();
+  let sel = {d:cur.d, m:cur.m, y:cur.y};
+  if(existingVal && existingVal.includes("هـ")){
+    const p = existingVal.replace("هـ","").split("-");
+    if(p.length===3){ sel={y:parseInt(p[0]),m:parseInt(p[1]),d:parseInt(p[2])}; }
+  }
+  const days  = Array.from({length:30},(_,i)=>i+1).map(n=>`<option value="${n}"${n===sel.d?" selected":""}>${n}</option>`).join("");
+  const months= HIJRI_MONTHS.map((mn,i)=>`<option value="${i+1}"${(i+1)===sel.m?" selected":""}>${mn}</option>`).join("");
+  const years = Array.from({length:12},(_,i)=>cur.y-1+i).map(yr=>`<option value="${yr}"${yr===sel.y?" selected":""}>${yr}هـ</option>`).join("");
+  return `<div style="display:flex;gap:4px;flex-wrap:nowrap">
+    <select class="inp" id="${id}_d" style="flex:0 0 60px;min-width:0;padding-right:4px;padding-left:4px">${days}</select>
+    <select class="inp" id="${id}_m" style="flex:1;min-width:0">${months}</select>
+    <select class="inp" id="${id}_y" style="flex:0 0 85px;min-width:0;padding-right:4px;padding-left:4px">${years}</select>
+  </div>`;
+}
+// اقرأ قيمة المنتقي كـ "YYYY-MM-DDهـ" (قابلة للفرز)
+function hijriVal(id){
+  const d=String((document.getElementById(id+"_d")||{}).value||"").padStart(2,"0");
+  const m=String((document.getElementById(id+"_m")||{}).value||"").padStart(2,"0");
+  const y=(document.getElementById(id+"_y")||{}).value||"";
+  return (d!=="00"&&m!=="00"&&y)?`${y}-${m}-${d}هـ`:"";
+}
+// حوّل "YYYY-MM-DDهـ" أو ISO إلى نص هجري للعرض
+function inputDateToHijri(val){
+  if(!val) return "";
+  if(val.includes("هـ")){
+    const p=val.replace("هـ","").split("-");
+    if(p.length===3){ const mn=HIJRI_MONTHS[parseInt(p[1])-1]||""; return `${parseInt(p[2])} ${mn} ${p[0]}هـ`; }
+    return val;
+  }
+  try{ return new Date(val).toLocaleDateString("ar-SA-u-ca-islamic-umalqura",{year:"numeric",month:"long",day:"numeric"}); }catch(e){ return val; }
+}
+function todayHijri(){ return inputDateToHijri(hijriVal("__dummy__")||(() => { const c=currentHijriParts(); return `${c.y}-${String(c.m).padStart(2,"0")}-${String(c.d).padStart(2,"0")}هـ`; })()); }
 
 let _toastTimer;
 function toast(msg, type="ok") {
@@ -1117,8 +1159,8 @@ function renderAdminNew(el) {
         </select>
       </div>
       <div>
-        <label class="lbl">تاريخ الاختبار</label>
-        <input class="inp" id="bf_examdate" type="date"/>
+        <label class="lbl">تاريخ الاختبار (هجري)</label>
+        ${hijriPicker("bf_examdate")}
       </div>
       <div>
         <label class="lbl">القاعة / اللجنة</label>
@@ -1151,7 +1193,7 @@ function submitNewBundle() {
   const auditor2   = document.getElementById("bf_auditor2").value;
   const note       = document.getElementById("bf_note").value;
   const examDay    = (document.getElementById("bf_day")||{value:""}).value||"";
-  const examDate   = (document.getElementById("bf_examdate")||{value:""}).value||"";
+  const examDate   = hijriVal("bf_examdate")||"";
   const examHall   = (document.getElementById("bf_hall")||{value:""}).value||"";
   const examStart  = (document.getElementById("bf_start")||{value:""}).value||"";
   const examEnd    = (document.getElementById("bf_end")||{value:""}).value||"";
@@ -1339,8 +1381,8 @@ function adminEditBundle(id) {
           <option ${b.examDay=='الأربعاء'?'selected':''}">الأربعاء</option>
           <option ${b.examDay=='الخميس'?'selected':''}">الخميس</option>
         </select></div>
-      <div><label style="font-size:11px;color:var(--mid);display:block;margin-bottom:3px">التاريخ</label>
-        <input class="inp" id="eb_examdate" type="date" value="${b.examDate||''}" style="font-size:12px"/></div>
+      <div><label style="font-size:11px;color:var(--mid);display:block;margin-bottom:3px">التاريخ (هجري)</label>
+        ${hijriPicker("eb_examdate", b.examDate||"")}</div>
       <div><label style="font-size:11px;color:var(--mid);display:block;margin-bottom:3px">القاعة</label>
         <input class="inp" id="eb_hall" value="${b.examHall||''}" style="font-size:12px"/></div>
       <div><label style="font-size:11px;color:var(--mid);display:block;margin-bottom:3px">وقت البدء</label>
@@ -1371,7 +1413,7 @@ function saveEditBundle(id) {
   b.auditor    = document.getElementById("eb_auditor").value;
   b.auditor2   = document.getElementById("eb_auditor2").value;
   b.examDay    = (document.getElementById("eb_day")||{value:""}).value||b.examDay||"";
-  b.examDate   = (document.getElementById("eb_examdate")||{value:""}).value||b.examDate||"";
+  b.examDate   = hijriVal("eb_examdate")||b.examDate||"";
   b.examHall   = (document.getElementById("eb_hall")||{value:""}).value||b.examHall||"";
   b.examStart  = (document.getElementById("eb_start")||{value:""}).value||b.examStart||"";
   b.examEnd    = (document.getElementById("eb_end")||{value:""}).value||b.examEnd||"";
@@ -3698,7 +3740,7 @@ function renderMonitorCommittees(el) {
           </div>
           <div>
             <label class="lbl">التاريخ</label>
-            <input class="inp" id="mnDate" type="date" value="${new Date().toISOString().slice(0,10)}"/>
+            ${hijriPicker("mnDate")}
           </div>
         </div>
         <div style="margin-bottom:10px">
@@ -3767,7 +3809,7 @@ function saveMonitorNote() {
   const subj = document.getElementById("mnSubj").value.trim();
   const grade = document.getElementById("mnGrade").value.trim();
   const hall = document.getElementById("mnHall").value.trim();
-  const date = document.getElementById("mnDate").value.trim();
+  const date = hijriVal("mnDate");
   const note = document.getElementById("mnNote").value.trim();
   if (!note) { toast("اكتب الملاحظة أولاً","err"); return; }
   if (!state.monitorNotes) state.monitorNotes = [];
@@ -3824,7 +3866,7 @@ function renderMonitorPapers(el) {
           </div>
           <div>
             <label class="lbl">التاريخ</label>
-            <input class="inp" id="ppDate" type="date" value="${new Date().toISOString().slice(0,10)}"/>
+            ${hijriPicker("ppDate")}
           </div>
         </div>
         <div class="g2" style="margin-bottom:10px">
@@ -3905,7 +3947,7 @@ function saveMonitorPapers() {
   const subj = document.getElementById("ppSubj").value.trim();
   const grade = document.getElementById("ppGrade").value.trim();
   const hall = document.getElementById("ppHall").value.trim();
-  const date = document.getElementById("ppDate").value.trim();
+  const date = hijriVal("ppDate");
   const observer = document.getElementById("ppObserver").value.trim();
   const students = document.getElementById("ppStudents").value.trim();
   const qCount = document.getElementById("ppQCount").value.trim();
@@ -4118,7 +4160,7 @@ function showPledgeForm(pledgeType) {
     if(field.type==="teacher_select") return `<div><label class="lbl">${field.label}</label><select class="inp" id="${field.id}">${teacherOptions()}</select></div>`;
     if(field.type==="select") return `<div><label class="lbl">${field.label}</label><select class="inp" id="${field.id}"><option value="">-- اختر --</option>${(field.options||[]).map(o=>`<option>${o}</option>`).join("")}</select></div>`;
     if(field.type==="textarea") return `<div style="grid-column:1/-1"><label class="lbl">${field.label}</label><textarea class="inp" id="${field.id}" rows="2" placeholder="${field.placeholder||""}" style="resize:vertical"></textarea></div>`;
-    if(field.type==="date") return `<div><label class="lbl">${field.label}</label><input class="inp" id="${field.id}" type="date" value="${today}"/></div>`;
+    if(field.type==="date") return `<div><label class="lbl">${field.label}</label>${hijriPicker(field.id)}</div>`;
     if(field.type==="time") return `<div><label class="lbl">${field.label}</label><input class="inp" id="${field.id}" type="time"/></div>`;
     if(field.type==="number") return `<div><label class="lbl">${field.label}</label><input class="inp" id="${field.id}" type="number" min="0" placeholder="${field.placeholder||"0"}"/></div>`;
     return `<div><label class="lbl">${field.label}</label><input class="inp" id="${field.id}" placeholder="${field.placeholder||""}"/></div>`;
@@ -4137,7 +4179,7 @@ function showPledgeForm(pledgeType) {
         <div><label class="lbl">رقم الجلوس</label><input class="inp" id="st_seat" placeholder="رقم الجلوس"/></div>
         <div><label class="lbl">الصف</label><select class="inp" id="st_grade"><option value="">-- اختر --</option>${gradeOptions}</select></div>
         ${f.hasMaterial||!f.extraFields.find(x=>x.id==="subject")?`<div><label class="lbl">المادة</label><select class="inp" id="subject"><option value="">-- اختر --</option>${subjectOptions}</select></div>`:""}
-        <div><label class="lbl">التاريخ</label><input class="inp" id="st_date" type="date" value="${today}"/></div>
+        <div><label class="lbl">التاريخ</label>${hijriPicker("st_date")}</div>
       </div>
 
       <!-- الحقول الإضافية -->
@@ -4201,9 +4243,10 @@ function saveMonitorPledge(pledgeType) {
   }
 
   // جمع البيانات
-  const allIds = ["st_name","st_civil","st_seat","st_grade","subject","st_date","st_text","st_violation","st_vtype","st_semester","st_vrep","st_observer_name","st_observer1","st_observer2","st_supervisor","st_paragraphs","st_deducted","st_teacher","st_arrtime","st_starttime","st_delay_reason","st_delay_rep","st_decision","st_reason","monitor_name"];
+  const allIds = ["st_name","st_civil","st_seat","st_grade","subject","st_text","st_violation","st_vtype","st_semester","st_vrep","st_observer_name","st_observer1","st_observer2","st_supervisor","st_paragraphs","st_deducted","st_teacher","st_arrtime","st_starttime","st_delay_reason","st_delay_rep","st_decision","st_reason","monitor_name"];
   const data = {};
   allIds.forEach(id=>{ const el=document.getElementById(id); if(el) data[id]=el.value; });
+  data.st_date = hijriVal("st_date");
 
   const sigStudent = f.hasStudentSig ? (document.getElementById("sigStudent")||{}).toDataURL?.() || "" : "";
   const sigMonitor = f.hasMonitorSig ? (document.getElementById("sigMonitor")||{}).toDataURL?.() || "" : "";
