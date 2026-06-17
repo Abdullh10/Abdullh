@@ -641,6 +641,17 @@ async function loadFromCloud() {
         if(d[k] !== undefined) state[k] = d[k];
       });
     }
+    // ضمان وجود المستخدمين الافتراضيين دائماً (لا تُحذف عند تحديث الكود)
+    var defaultUsers = [
+      { id:"U1", name:"مدير النظام",        username:"admin",     password:"admin123", role:"admin"      },
+      { id:"U2", name:"الكنترول",           username:"ctrl",      password:"ctrl123",  role:"controller" },
+      { id:"U3", name:"مسؤول التنبيهات",    username:"notify",    password:"1234",     role:"notifier"   },
+      { id:"U4", name:"مدير المدرسة",       username:"principal", password:"prin123",  role:"principal"  },
+      { id:"U5", name:"مراقب اللجان",       username:"monitor",   password:"mon123",   role:"monitor"    },
+    ];
+    defaultUsers.forEach(function(du){
+      if(!state.users.find(function(u){ return u.id===du.id; })) state.users.push(du);
+    });
     // Load bundles
     var brows = await sbGet("bundles");
     if(brows && brows.length) {
