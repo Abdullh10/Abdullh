@@ -645,9 +645,9 @@ async function loadFromCloud() {
     var defaultUsers = [
       { id:"U1", name:"مدير النظام",        username:"admin",     password:"admin123", role:"admin"      },
       { id:"U2", name:"الكنترول",           username:"ctrl",      password:"ctrl123",  role:"controller" },
+      { id:"U5", name:"مراقب اللجان",       username:"monitor",   password:"mon123",   role:"monitor"    },
       { id:"U3", name:"مسؤول التنبيهات",    username:"notify",    password:"1234",     role:"notifier"   },
       { id:"U4", name:"مدير المدرسة",       username:"principal", password:"prin123",  role:"principal"  },
-      { id:"U5", name:"مراقب اللجان",       username:"monitor",   password:"mon123",   role:"monitor"    },
     ];
     defaultUsers.forEach(function(du){
       if(!state.users.find(function(u){ return u.id===du.id; })) state.users.push(du);
@@ -736,9 +736,9 @@ let state = {
   users: [
     { id:"U1", name:"مدير النظام",        username:"admin",     password:"admin123", role:"admin"      },
     { id:"U2", name:"الكنترول",           username:"ctrl",      password:"ctrl123",  role:"controller" },
+    { id:"U5", name:"مراقب اللجان",       username:"monitor",   password:"mon123",   role:"monitor"    },
     { id:"U3", name:"مسؤول التنبيهات",    username:"notify",    password:"1234",     role:"notifier"   },
     { id:"U4", name:"مدير المدرسة",       username:"principal", password:"prin123",  role:"principal"  },
-    { id:"U5", name:"مراقب اللجان",       username:"monitor",   password:"mon123",   role:"monitor"    },
   ],
   bundles: [],
   notifLog: [],
@@ -871,6 +871,7 @@ function quickLogin(username, password) {
   var allUsers = (state.users && state.users.length > 0) ? state.users : [
     {id:"U1",name:"مدير النظام",      username:"admin",     password:"admin123", role:"admin"},
     {id:"U2",name:"الكنترول",         username:"ctrl",      password:"ctrl123",  role:"controller"},
+    {id:"U5",name:"مراقب اللجان",     username:"monitor",   password:"mon123",   role:"monitor"},
     {id:"U3",name:"مسؤول التنبيهات", username:"notify",    password:"1234",     role:"notifier"},
     {id:"U4",name:"مدير المدرسة",     username:"principal", password:"prin123",  role:"principal"},
   ];
