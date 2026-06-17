@@ -4475,6 +4475,55 @@ function renderPrincipalReport(el) {
       </div>`}
   </div>
 
+  <!-- Principal Notes -->
+  <div class="card" style="margin-bottom:14px;border:2px solid var(--gold)">
+    <p class="card-title"><span class="ct-icon" style="background:#FEF3C7">📝</span>ملاحظات وتوجيهات مدير المدرسة</p>
+    <textarea id="principalNotesArea" class="inp" rows="4"
+      placeholder="اكتب ملاحظاتك وتوجيهاتك للكنترول أو مسؤول التنبيهات هنا..."
+      style="margin-bottom:10px">${state.principalNotes||""}</textarea>
+    <button class="btn btn-gold btn-full" onclick="
+      state.principalNotes=document.getElementById('principalNotesArea').value;
+      saveState();saveToCloud();toast('تم حفظ الملاحظات ✅')">💾 حفظ الملاحظات</button>
+  </div>
+
+  <!-- Incomplete alert -->
+  ${incompleteBundles.length>0?`
+  <div class="card" style="margin-bottom:14px;border:2px solid var(--red)">
+    <p class="card-title"><span class="ct-icon" style="background:#FEE2E2">⚠️</span>المظاريف غير المكتملة (${incompleteBundles.length})</p>
+    ${incompleteBundles.slice(0,6).map(b=>{
+      const sn=b.stage<0?"جديد - لم تبدأ":state.stages[b.stage]||"—";
+      const ct=state.teachers.find(t=>t.id===b.corrector);
+      return "<div style='display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #FEE2E2'>"
+        +"<div style='width:7px;height:7px;border-radius:50%;background:var(--red);flex-shrink:0'></div>"
+        +"<div style='flex:1'><p style='font-size:13px;font-weight:700;color:var(--navy)'>"+b.subject+" — "+(b.grade||"—")+"</p>"
+        +"<p style='font-size:11px;color:var(--muted)'>"+sn+(ct?" | "+ct.name:"")+"</p></div>"
+        +"<span style='font-size:10px;font-family:monospace;color:var(--muted)'>"+b.barcode+"</span></div>";
+    }).join("")}
+    ${incompleteBundles.length>6?"<p style='font-size:12px;color:var(--muted);text-align:center;margin-top:8px'>... و "+(incompleteBundles.length-6)+" مظروف آخر في تقرير المتأخرات PDF</p>":""}
+  </div>`:"<div class='card' style='margin-bottom:14px;border:2px solid #10B981;background:#F0FDF4'><p style='text-align:center;color:#065F46;font-weight:700;font-size:14px;padding:10px'>✅ جميع المظاريف مكتملة</p></div>"}
+
+  <!-- By subject -->
+  <div class="card" style="margin-bottom:14px">
+    <p class="card-title"><span class="ct-icon" style="background:#FEF3C7">📚</span>الإنجاز حسب المادة</p>
+    <div style="overflow-x:auto">
+    <table class="data-table">
+      <thead><tr><th>المادة</th><th style="text-align:center">المظاريف</th><th style="text-align:center">✅ مكتمل</th><th style="text-align:center">⏳ جارٍ</th><th>نسبة الإنجاز</th><th></th></tr></thead>
+      <tbody>
+        ${Object.entries(subjectMap).map(([subj,d])=>{
+          const p=d.total>0?Math.round((d.done/d.total)*100):0;
+          const c=p>=80?"#10B981":p>=50?"#F59E0B":"#3B82F6";
+          return "<tr><td style='font-weight:700;color:var(--navy)'>"+subj+"</td>"
+            +"<td style='text-align:center'>"+d.total+"</td>"
+            +"<td style='text-align:center'><span style='color:#059669;font-weight:700'>"+d.done+"</span></td>"
+            +"<td style='text-align:center'><span style='color:#D97706;font-weight:700'>"+d.inProg+"</span></td>"
+            +"<td><div style='display:flex;align-items:center;gap:5px'><div style='flex:1;height:6px;background:var(--border);border-radius:99px;overflow:hidden;min-width:45px'><div style='height:100%;width:"+p+"%;background:"+c+";border-radius:99px'></div></div><span style='font-size:11px;font-weight:700;color:"+c+"'>"+p+"%</span></div></td>"
+            +"</tr>";
+        }).join("")}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
   <!-- Stage Pipeline -->
   ${stagesLen>0?`
   <div class="card" style="margin-bottom:14px">
@@ -6319,8 +6368,7 @@ function showPledgeForm(pledgeType) {
         <div><label class="lbl">اسم الطالب *</label><select class="inp" id="st_student_select" onchange="pledgeApplyStudentSelection()" disabled><option value="">-- اختر اللجنة أولاً --</option></select></div>
       </div>
       <div class="g2" style="margin-bottom:10px">
-        <input type="hidden" id="st_name"/>
-        <div><label class="lbl">السجل المدني</label><input class="inp" id="st_civil" placeholder="رقم السجل المدني" dir="ltr"/></div>
+        <input type="hidden" id="st_name"/>        <div><label class="lbl">السجل المدني</label><input class="inp" id="st_civil" placeholder="رقم السجل المدني" dir="ltr"/></div>
         <div><label class="lbl">رقم الجلوس</label><input class="inp" id="st_seat" placeholder="رقم الجلوس"/></div>
         <div><label class="lbl">الصف</label><select class="inp" id="st_grade"><option value="">-- اختر --</option>${gradeOptions}</select></div>
         ${f.hasMaterial||!f.extraFields.find(x=>x.id==="subject")?`<div><label class="lbl">المادة</label><select class="inp" id="subject"><option value="">-- اختر --</option>${subjectOptions}</select></div>`:""}
