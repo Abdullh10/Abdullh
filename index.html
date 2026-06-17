@@ -3479,12 +3479,37 @@ function renderPrincipalReport(el) {
   const subjectMap={};
   state.bundles.forEach(b=>{
     const s=b.subject||"غير محدد";
-    if(!subjectMap[s]) subjectMap[s]={total:0,done:0,inProg:0,notStarted:0,papers:0};
+    if(!subjectMap[s]) subjectMap[s]={total:0,done:0,inProg:0,notStarted:0,papers:0,stages:{}};
     subjectMap[s].total++; subjectMap[s].papers+=b.count;
     if(b.stage===stagesLen-1) subjectMap[s].done++;
     else if(b.stage>=0) subjectMap[s].inProg++;
     else subjectMap[s].notStarted++;
+    const sk=b.stage<0?-1:b.stage;
+    if(!subjectMap[s].stages[sk]) subjectMap[s].stages[sk]=0;
+    subjectMap[s].stages[sk]++;
   });
+
+  // documents overview: pledges (monitorReports), minutes (minutesArchive), daily reports
+  const pledgeList  = state.monitorReports||[];
+  const minutesList = state.minutesArchive||[];
+  const dailyList    = state.monitorDailyReports||[];
+  const approvalsList= state.approvals||[];
+  function _apprStatus(docType,docId){
+    const a=approvalsList.find(x=>x.docType===docType && x.docId===docId);
+    return a?a.status:"none"; // none | pending | approved | rejected
+  }
+  function _docStatusBadge(st){
+    if(st==="approved") return `<span style="font-size:10px;font-weight:700;color:#065F46;background:#D1FAE5;padding:2px 8px;border-radius:99px">✅ معتمد</span>`;
+    if(st==="pending")  return `<span style="font-size:10px;font-weight:700;color:#92400E;background:#FEF3C7;padding:2px 8px;border-radius:99px">⏳ بانتظار الاعتماد</span>`;
+    if(st==="rejected") return `<span style="font-size:10px;font-weight:700;color:#991B1B;background:#FEE2E2;padding:2px 8px;border-radius:99px">❌ مرفوض</span>`;
+    return `<span style="font-size:10px;font-weight:700;color:#64748B;background:#F1F5F9;padding:2px 8px;border-radius:99px">— لم يُرسل</span>`;
+  }
+  const pledgeCounts={approved:0,pending:0,rejected:0,none:0};
+  pledgeList.forEach(r=>{ pledgeCounts[_apprStatus("pledge",r.id)]++; });
+  const minutesCounts={approved:0,pending:0,rejected:0,none:0};
+  minutesList.forEach(r=>{ minutesCounts[_apprStatus("minutes",r.id)]++; });
+  const dailyCounts={approved:0,pending:0,rejected:0,none:0};
+  dailyList.forEach(r=>{ dailyCounts[_apprStatus("daily",r.id)]++; });
 
   // per-grade
   const gradeMap={};
@@ -3652,9 +3677,63 @@ function renderPrincipalReport(el) {
               </div>
             </div>
             ${bar(p2,col,9)}
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+              ${Object.entries(d.stages).sort((a,b3)=>Number(a[0])-Number(b3[0])).map(([sk,cnt])=>{
+                const isLast2=Number(sk)===stagesLen-1, isNew2=Number(sk)<0;
+                const lbl=isNew2?"🆕 لم تبدأ":isLast2?"✅ مكتمل":"⚙️ "+(state.stages[sk]||"—");
+                const col2=isLast2?"#10B981":isNew2?"#64748B":"#3B82F6";
+                return `<span style="font-size:10px;font-weight:700;color:${col2};background:${col2}15;padding:2px 9px;border-radius:99px">${lbl}: ${cnt}</span>`;
+              }).join("")}
+            </div>
           </div>`;
         }).join("")}
       </div>`}
+  </div>
+
+  <!-- Pledges / Minutes / Daily Reports Overview -->
+  <div class="card" style="margin-bottom:14px">
+    <p class="card-title"><span class="ct-icon" style="background:#E0F2FE">🗂</span>متابعة التعهدات والمحاضر والتقارير</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px">
+      <div style="background:var(--bg);border-radius:12px;padding:13px;border:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:12px;font-weight:800;color:var(--navy)">📋 التعهدات / الإقرارات</span>
+          <span style="font-size:16px;font-weight:900;color:var(--navy)">${pledgeList.length}</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:#065F46">✅ معتمدة</span><span style="font-size:11px;font-weight:700">${pledgeCounts.approved}</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:#92400E">⏳ بانتظار الاعتماد</span><span style="font-size:11px;font-weight:700">${pledgeCounts.pending}</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:#64748B">— لم تُرسل</span><span style="font-size:11px;font-weight:700">${pledgeCounts.none}</span></div>
+        </div>
+      </div>
+      <div style="background:var(--bg);border-radius:12px;padding:13px;border:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:12px;font-weight:800;color:var(--navy)">📝 محاضر فتح المظاريف</span>
+          <span style="font-size:16px;font-weight:900;color:var(--navy)">${minutesList.length}</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:#065F46">✅ معتمدة</span><span style="font-size:11px;font-weight:700">${minutesCounts.approved}</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:#92400E">⏳ بانتظار الاعتماد</span><span style="font-size:11px;font-weight:700">${minutesCounts.pending}</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:#64748B">— لم تُرسل</span><span style="font-size:11px;font-weight:700">${minutesCounts.none}</span></div>
+        </div>
+      </div>
+      <div style="background:var(--bg);border-radius:12px;padding:13px;border:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:12px;font-weight:800;color:var(--navy)">📊 التقارير اليومية</span>
+          <span style="font-size:16px;font-weight:900;color:var(--navy)">${dailyList.length}</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:#065F46">✅ معتمدة</span><span style="font-size:11px;font-weight:700">${dailyCounts.approved}</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:#92400E">⏳ بانتظار الاعتماد</span><span style="font-size:11px;font-weight:700">${dailyCounts.pending}</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:#64748B">— لم تُرسل</span><span style="font-size:11px;font-weight:700">${dailyCounts.none}</span></div>
+        </div>
+      </div>
+    </div>
+    ${approvalsList.filter(a=>a.status==="pending").length>0?`
+    <div style="margin-top:10px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:8px">
+      <span style="font-size:18px">⏳</span>
+      <span style="font-size:12px;color:#92400E;font-weight:700">يوجد ${approvalsList.filter(a=>a.status==="pending").length} مستند بانتظار اعتمادك — </span>
+      <button class="btn" style="margin-right:auto;padding:5px 14px;font-size:11px;background:#92400E;color:#fff" onclick="navigateTo('principal_approvals')">عرض الاعتمادات</button>
+    </div>`:""}
   </div>
 
   <!-- Per-Grade Progress -->
