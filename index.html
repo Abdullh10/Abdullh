@@ -620,7 +620,7 @@ async function saveToCloud() {
     subjects:state.subjects, grades:state.grades,
     stages:state.stages, teachers:state.teachers,
     users:state.users, examSchedule:state.examSchedule||[], minutesData:state.minutesData||null, minutesArchive:state.minutesArchive||[], inbox:state.inbox||[], principalMessages:state.principalMessages||[],
-    monitorReports:state.monitorReports||[], monitorNotes:state.monitorNotes||[], monitorStudentObs:state.monitorStudentObs||[], monitorDailyReports:state.monitorDailyReports||[], approvals:state.approvals||[], studentsDB:state.studentsDB||[]
+    monitorReports:state.monitorReports||[], monitorNotes:state.monitorNotes||[], monitorStudentObs:state.monitorStudentObs||[], monitorDailyReports:state.monitorDailyReports||[], approvals:state.approvals||[], studentsDB:state.studentsDB||[], absenceLog:state.absenceLog||[]
   };
   await sbUpsert("settings", {id:"main", data:settings, updated_at:new Date().toISOString()});
   // Also save to localStorage as backup
@@ -646,7 +646,7 @@ async function loadFromCloud() {
     var rows = await sbGet("settings", {id:"main"});
     if(rows && rows[0] && rows[0].data) {
       var d = rows[0].data;
-      ["schoolName","adminPhone","subjects","grades","stages","teachers","users","examSchedule","minutesData","minutesArchive","inbox","principalMessages","monitorReports","monitorNotes","monitorStudentObs","monitorDailyReports","approvals","studentsDB"].forEach(function(k){
+      ["schoolName","adminPhone","subjects","grades","stages","teachers","users","examSchedule","minutesData","minutesArchive","inbox","principalMessages","monitorReports","monitorNotes","monitorStudentObs","monitorDailyReports","approvals","studentsDB","absenceLog"].forEach(function(k){
         if(d[k] !== undefined) state[k] = d[k];
       });
     }
@@ -1435,6 +1435,7 @@ let state = {
   monitorDailyReports: [], // daily committee reports
   approvals: [], // [{id,docType,docId,title,subtitle,submittedBy,submittedAt,status,principalName,principalSig,decidedAt,rejectReason}]
   studentsDB: SEED_STUDENTS.map((s,i)=>({id:"S"+i,name:s.n,sid:s.sid,phone:s.ph,committee:s.c,grade:(i<=263?"أول ثانوي":i<=488?"ثاني ثانوي":"ثالث ثانوي")})), // [{id,name,sid,phone,committee,grade}]
+  absenceLog: [], // [{id,date,grade,committee,names,note,savedAt,user}]
 };
 
 let currentUser = null;
@@ -1453,7 +1454,7 @@ const NOTIFY_TYPES = [
 const PAGES = {
   admin:      [ {k:"admin_new", icon:"✦", label:"مظروف جديد"}, {k:"admin_list",icon:"📦",label:"المظاريف"}, {k:"students_db",icon:"🔍",label:"قاعدة بيانات الطلاب"}, {k:"settings",icon:"⚙",label:"الإعدادات"} ],
   controller: [ {k:"ctrl_scan",icon:"📡",label:"مسح الباركود"}, {k:"ctrl_list",icon:"📋",label:"المظاريف"}, {k:"ctrl_schedule",icon:"📅",label:"جدول الاختبارات"}, {k:"ctrl_report",icon:"📄",label:"تقارير PDF"}, {k:"ctrl_minutes",icon:"📝",label:"محضر فتح المظاريف"}, {k:"students_db",icon:"🔍",label:"قاعدة بيانات الطلاب"}, {k:"inbox",icon:"🔔",label:"تنبيهات"} ],
-  notifier:   [ {k:"notif_send",icon:"💬",label:"إرسال تنبيه"}, {k:"notif_log",icon:"📜",label:"سجل التنبيهات"}, {k:"inbox",icon:"🔔",label:"تنبيهات"} ],
+  notifier:   [ {k:"notif_send",icon:"💬",label:"إرسال تنبيه"}, {k:"notif_absence",icon:"🧑‍🎓",label:"رصد غياب الطلاب"}, {k:"notif_log",icon:"📜",label:"سجل التنبيهات"}, {k:"inbox",icon:"🔔",label:"تنبيهات"} ],
   principal:  [ {k:"principal_report",icon:"📈",label:"التقارير"}, {k:"principal_approvals",icon:"✅",label:"اعتماد المستندات"}, {k:"principal_archive",icon:"🗄",label:"الأرشيف النهائي"}, {k:"students_db",icon:"🔍",label:"قاعدة بيانات الطلاب"}, {k:"principal_compose",icon:"✉️",label:"إرسال رسالة"}, {k:"principal_sent",icon:"📤",label:"الرسائل المُرسَلة"} ],
   monitor:    [ {k:"monitor_committees",icon:"👁",label:"متابعة اللجان"}, {k:"monitor_papers",icon:"📄",label:"عد الأوراق"}, {k:"monitor_students",icon:"🧑‍🎓",label:"متابعة الطلاب"}, {k:"monitor_daily",icon:"📊",label:"تقرير يومي"}, {k:"monitor_pledge",icon:"📋",label:"التعهدات"}, {k:"monitor_reports",icon:"🗂",label:"تقارير المراقب"}, {k:"students_db",icon:"🔍",label:"قاعدة بيانات الطلاب"} ],
 };
@@ -1766,6 +1767,7 @@ function navigateTo(page) {
     case "ctrl_minutes": renderCtrlMinutes(el); break;
     case "notif_send":  renderNotifSend(el);   break;
     case "notif_log":    renderNotifLog(el);      break;
+    case "notif_absence": renderNotifAbsence(el); break;
     case "ctrl_schedule":renderCtrlSchedule(el);  break;
     case "ctrl_report":  renderCtrlReport(el);    break;
     case "principal_report":    renderPrincipalReport(el);    break;
@@ -2678,6 +2680,91 @@ function renderNotifLog(el) {
         </div>
       </div>
     </div>`).join("")}</div>`;
+}
+
+// ═══════════════════════════════════════════════
+// رصد غياب الطلاب (موقع المتمم — RCJY)
+// ═══════════════════════════════════════════════
+const ALMUTAMIM_URL = "https://ola.rcjy.edu.sa/teacher";
+function renderNotifAbsence(el) {
+  const log = (state.absenceLog||[]).slice().reverse();
+  el.innerHTML = `
+  <div class="page-wrap" style="max-width:760px">
+
+    <div class="card" style="margin-bottom:14px;border:2px solid #5B21B6">
+      <p class="card-title"><span class="ct-icon" style="background:#EDE9FE">🧑‍🎓</span>رصد غياب الطلاب</p>
+      <p style="font-size:13px;color:var(--text);line-height:1.8;margin-bottom:12px">
+        يتم رصد الغياب الرسمي للطلاب عبر <strong>بوابة المتمم</strong> التابعة للهيئة الملكية للجبيل وينبع.
+        اضغط الزر أدناه للانتقال مباشرة إلى صفحة رصد الغياب الخاصة بك.
+      </p>
+      <a href="${ALMUTAMIM_URL}" target="_blank" rel="noopener"
+        style="display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#5B21B6,#7C3AED);color:#fff;text-decoration:none;border-radius:12px;padding:14px;font-size:15px;font-weight:800">
+        🔗 فتح بوابة المتمم لرصد الغياب
+      </a>
+      <p style="font-size:11px;color:var(--muted);margin-top:8px;text-align:center;direction:ltr">${ALMUTAMIM_URL}</p>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <p class="card-title"><span class="ct-icon" style="background:#FEF3C7">📝</span>سجل داخلي سريع للغياب (اختياري)</p>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:10px">يمكنك تدوين ملاحظة سريعة هنا للمتابعة الداخلية بعد رصد الغياب في بوابة المتمم</p>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${hijriPicker("ab_date")}
+        <div style="display:flex;gap:8px">
+          <select class="inp" id="ab_grade" style="flex:1">
+            <option value="">المرحلة</option>
+            ${state.grades.map(g=>`<option>${g}</option>`).join("")}
+          </select>
+          <input class="inp" id="ab_committee" placeholder="اللجنة / الفصل" style="flex:1">
+        </div>
+        <textarea class="inp" id="ab_names" rows="3" placeholder="أسماء الطلاب الغائبين (طالب في كل سطر)"></textarea>
+        <input class="inp" id="ab_note" placeholder="ملاحظة (اختياري)">
+        <button class="btn btn-navy btn-full" onclick="saveAbsenceLog()">💾 حفظ السجل</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="card-title"><span class="ct-icon" style="background:#FEE2E2">📋</span>السجلات المحفوظة</p>
+      ${log.length===0
+        ? `<div class="empty"><span class="empty-icon">📋</span>لا توجد سجلات محفوظة بعد</div>`
+        : `<div style="display:flex;flex-direction:column;gap:8px">
+          ${log.map(r=>`
+          <div style="background:var(--bg);border-radius:10px;padding:11px 13px;border-right:3px solid #5B21B6">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+              <span style="font-size:12px;font-weight:800;color:var(--navy)">${r.grade||"—"} ${r.committee?" | لجنة "+r.committee:""}</span>
+              <span style="font-size:11px;color:var(--muted)">${r.date||""}</span>
+            </div>
+            <p style="font-size:12px;color:var(--text);white-space:pre-line;line-height:1.7">${r.names}</p>
+            ${r.note?`<p style="font-size:11px;color:var(--muted);margin-top:4px">📝 ${r.note}</p>`:""}
+            <div style="text-align:left;margin-top:6px">
+              <button class="del-btn" onclick="deleteAbsenceLog('${r.id}')" title="حذف">×</button>
+            </div>
+          </div>`).join("")}
+        </div>`}
+    </div>
+
+  </div>`;
+}
+function saveAbsenceLog() {
+  const names = document.getElementById("ab_names").value.trim();
+  if(!names) { toast("أدخل أسماء الطلاب الغائبين","err"); return; }
+  state.absenceLog.push({
+    id: uid(),
+    date: hijriVal("ab_date"),
+    grade: document.getElementById("ab_grade").value,
+    committee: document.getElementById("ab_committee").value.trim(),
+    names,
+    note: document.getElementById("ab_note").value.trim(),
+    savedAt: nowISO(),
+    user: currentUser.name,
+  });
+  saveState(); saveToCloud();
+  toast("تم حفظ السجل ✅");
+  renderNotifAbsence(document.getElementById("pageContent"));
+}
+function deleteAbsenceLog(id) {
+  state.absenceLog = state.absenceLog.filter(r=>r.id!==id);
+  saveState(); saveToCloud();
+  renderNotifAbsence(document.getElementById("pageContent"));
 }
 
 // ═══════════════════════════════════════════════
