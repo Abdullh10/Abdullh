@@ -506,30 +506,12 @@ label.lbl{font-size:12px;color:var(--mid);display:block;margin-bottom:5px;font-w
           </div>
           <span style="color:rgba(255,255,255,.35);font-size:18px">←</span>
         </button>
-        <button onclick="quickLogin('monitor1','mon123')"
+        <button onclick="quickLogin('monitor','mon123')"
           style="display:flex;align-items:center;gap:12px;padding:13px 15px;background:linear-gradient(135deg,#831843,#9D174D);border:none;border-radius:12px;cursor:pointer;width:100%;font-family:inherit">
           <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">👁</div>
           <div style="flex:1;text-align:right">
-            <p style="color:#fff;font-weight:700;font-size:13px;margin:0">المراقب الأول (لجان 1-7)</p>
-            <p style="color:rgba(255,255,255,.5);font-size:11px;margin:0;font-family:monospace;direction:ltr">monitor1 / mon123</p>
-          </div>
-          <span style="color:rgba(255,255,255,.35);font-size:18px">←</span>
-        </button>
-        <button onclick="quickLogin('monitor2','mon123')"
-          style="display:flex;align-items:center;gap:12px;padding:13px 15px;background:linear-gradient(135deg,#831843,#9D174D);border:none;border-radius:12px;cursor:pointer;width:100%;font-family:inherit">
-          <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">👁</div>
-          <div style="flex:1;text-align:right">
-            <p style="color:#fff;font-weight:700;font-size:13px;margin:0">المراقب الثاني (لجان 8-14)</p>
-            <p style="color:rgba(255,255,255,.5);font-size:11px;margin:0;font-family:monospace;direction:ltr">monitor2 / mon123</p>
-          </div>
-          <span style="color:rgba(255,255,255,.35);font-size:18px">←</span>
-        </button>
-        <button onclick="quickLogin('monitor3','mon123')"
-          style="display:flex;align-items:center;gap:12px;padding:13px 15px;background:linear-gradient(135deg,#831843,#9D174D);border:none;border-radius:12px;cursor:pointer;width:100%;font-family:inherit">
-          <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">👁</div>
-          <div style="flex:1;text-align:right">
-            <p style="color:#fff;font-weight:700;font-size:13px;margin:0">المراقب الثالث (لجان 15-20 + الخاصة)</p>
-            <p style="color:rgba(255,255,255,.5);font-size:11px;margin:0;font-family:monospace;direction:ltr">monitor3 / mon123</p>
+            <p style="color:#fff;font-weight:700;font-size:13px;margin:0">مراقب اللجان</p>
+            <p style="color:rgba(255,255,255,.5);font-size:11px;margin:0;font-family:monospace;direction:ltr">monitor / mon123</p>
           </div>
           <span style="color:rgba(255,255,255,.35);font-size:18px">←</span>
         </button>
@@ -672,9 +654,7 @@ async function loadFromCloud() {
     var defaultUsers = [
       { id:"U1", name:"مدير النظام",        username:"admin",     password:"admin123", role:"admin"      },
       { id:"U2", name:"الكنترول",           username:"ctrl",      password:"ctrl123",  role:"controller" },
-      { id:"U5", name:"المراقب الأول",      username:"monitor1",  password:"mon123",   role:"monitor", assignedCommittees:["1","2","3","4","5","6","7"] },
-      { id:"U6", name:"المراقب الثاني",     username:"monitor2",  password:"mon123",   role:"monitor", assignedCommittees:["8","9","10","11","12","13","14"] },
-      { id:"U7", name:"المراقب الثالث",     username:"monitor3",  password:"mon123",   role:"monitor", assignedCommittees:["15","16","17","18","19","20","خاصة"] },
+      { id:"U5", name:"مراقب اللجان",       username:"monitor",   password:"mon123",   role:"monitor"    },
       { id:"U3", name:"مسؤول التنبيهات",    username:"notify",    password:"1234",     role:"notifier"   },
       { id:"U4", name:"مدير المدرسة",       username:"principal", password:"prin123",  role:"principal"  },
     ];
@@ -694,6 +674,7 @@ async function loadFromCloud() {
   } catch(e){ console.warn("loadFromCloud:",e.message); }
   finally {
     migrateStudentGrades();
+    migrateMonitorAccounts();
     if(dot) dot.style.display="none";
   }
 }
@@ -1442,9 +1423,7 @@ let state = {
   users: [
     { id:"U1", name:"مدير النظام",        username:"admin",     password:"admin123", role:"admin"      },
     { id:"U2", name:"الكنترول",           username:"ctrl",      password:"ctrl123",  role:"controller" },
-    { id:"U5", name:"المراقب الأول",      username:"monitor1",  password:"mon123",   role:"monitor", assignedCommittees:["1","2","3","4","5","6","7"] },
-    { id:"U6", name:"المراقب الثاني",     username:"monitor2",  password:"mon123",   role:"monitor", assignedCommittees:["8","9","10","11","12","13","14"] },
-    { id:"U7", name:"المراقب الثالث",     username:"monitor3",  password:"mon123",   role:"monitor", assignedCommittees:["15","16","17","18","19","20","خاصة"] },
+    { id:"U5", name:"مراقب اللجان",       username:"monitor",   password:"mon123",   role:"monitor"    },
     { id:"U3", name:"مسؤول التنبيهات",    username:"notify",    password:"1234",     role:"notifier"   },
     { id:"U4", name:"مدير المدرسة",       username:"principal", password:"prin123",  role:"principal"  },
   ],
@@ -1594,6 +1573,7 @@ function loadState() {
     });
   } catch(e) { console.warn("loadState failed:", e); }
   migrateStudentGrades();
+  migrateMonitorAccounts();
 }
 
 // تعبئة المرحلة الدراسية للطلاب المستوردين الذين لا تحمل سجلاتهم مرحلة بعد،
@@ -1613,6 +1593,24 @@ function migrateStudentGrades() {
     if(i1<0||i2<0) return;
     for(let i=Math.min(i1,i2); i<=Math.max(i1,i2); i++){
       if(db[i] && !db[i].grade){ db[i].grade=r.grade; changed=true; }
+    }
+  });
+  if(changed) { saveState(); if(typeof saveToCloud==="function") saveToCloud(); }
+}
+
+// تراجع عن الحسابات الافتراضية الثلاثة للمراقبين (monitor1/2/3) التي أُنشئت في إصدار سابق
+// والعودة لحساب مراقب واحد مرن يُسند المدير له اللجان يدوياً من لوحة الحسابات
+function migrateMonitorAccounts() {
+  if(!state.users) return;
+  let changed=false;
+  const u5 = state.users.find(u=>u.id==="U5");
+  if(u5 && u5.username==="monitor1" && u5.name==="المراقب الأول") {
+    u5.name="مراقب اللجان"; u5.username="monitor"; delete u5.assignedCommittees; changed=true;
+  }
+  ["U6","U7"].forEach(id=>{
+    const u = state.users.find(x=>x.id===id);
+    if(u && (u.username==="monitor2"||u.username==="monitor3") && (u.name==="المراقب الثاني"||u.name==="المراقب الثالث")) {
+      state.users = state.users.filter(x=>x.id!==id); changed=true;
     }
   });
   if(changed) { saveState(); if(typeof saveToCloud==="function") saveToCloud(); }
@@ -1652,9 +1650,7 @@ function quickLogin(username, password) {
   var allUsers = (state.users && state.users.length > 0) ? state.users : [
     {id:"U1",name:"مدير النظام",      username:"admin",     password:"admin123", role:"admin"},
     {id:"U2",name:"الكنترول",         username:"ctrl",      password:"ctrl123",  role:"controller"},
-    {id:"U5",name:"المراقب الأول",   username:"monitor1",  password:"mon123",   role:"monitor", assignedCommittees:["1","2","3","4","5","6","7"]},
-    {id:"U6",name:"المراقب الثاني",  username:"monitor2",  password:"mon123",   role:"monitor", assignedCommittees:["8","9","10","11","12","13","14"]},
-    {id:"U7",name:"المراقب الثالث",  username:"monitor3",  password:"mon123",   role:"monitor", assignedCommittees:["15","16","17","18","19","20","خاصة"]},
+    {id:"U5",name:"مراقب اللجان",     username:"monitor",   password:"mon123",   role:"monitor"},
     {id:"U3",name:"مسؤول التنبيهات", username:"notify",    password:"1234",     role:"notifier"},
     {id:"U4",name:"مدير المدرسة",     username:"principal", password:"prin123",  role:"principal"},
   ];
@@ -3046,7 +3042,8 @@ function renderSUsers(el) {
             <span style="font-size:11px;color:var(--muted);margin-right:5px;font-family:monospace">${u.username}</span>
           </div>
           <span class="tag" style="background:${bg};color:${col}">${ROLE_LABEL[u.role]||u.role}</span>
-          ${u.role==="monitor"&&u.assignedCommittees&&u.assignedCommittees.length?`<span class="tag" style="background:#F1F5F9;color:#334155">لجان: ${u.assignedCommittees.join("، ")}</span>`:""}
+          ${u.role==="monitor"?`<span class="tag" style="background:#F1F5F9;color:#334155">${u.assignedCommittees&&u.assignedCommittees.length?"لجان: "+u.assignedCommittees.join("، "):"كل اللجان"}</span>
+          <button class="btn btn-outline btn-sm" style="padding:4px 9px;font-size:11px" onclick="editUserCommittees('${u.id}')">✏️ اللجان</button>`:""}
           ${u.id!==(currentUser&&currentUser.id)?`<button class="del-btn" onclick="state.users=state.users.filter(x=>x.id!='${u.id}');saveState();renderSTabContent()">×</button>`:""}
         </div>`;
       }).join("")}
@@ -3075,6 +3072,17 @@ function renderSUsers(el) {
   </div>`;
 }
 
+function editUserCommittees(id) {
+  const u = state.users.find(x=>x.id===id);
+  if(!u) return;
+  const val = prompt("اكتب اللجان المخصصة لهذا المراقب مفصولة بفاصلة (مثال: 1,2,3 أو خاصة) — اتركها فارغة ليرى جميع اللجان:", (u.assignedCommittees||[]).join(","));
+  if(val===null) return;
+  const list = val.split(",").map(c=>c.trim()).filter(Boolean);
+  if(list.length) u.assignedCommittees = list; else delete u.assignedCommittees;
+  saveState(); saveToCloud();
+  toast("تم تحديث لجان المراقب ✅");
+  renderSTabContent();
+}
 function addUser() {
   const name=(document.getElementById("nu_name")||{value:""}).value.trim();
   const username=(document.getElementById("nu_user")||{value:""}).value.trim();
