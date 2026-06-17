@@ -1474,7 +1474,7 @@ const NOTIFY_TYPES = [
   { key:"info",       label:"إشعار عام",    icon:"◌", color:"#2563EB" },
 ];
 const PAGES = {
-  admin:      [ {k:"admin_new", icon:"✦", label:"مظروف جديد"}, {k:"admin_list",icon:"📦",label:"المظاريف"}, {k:"students_db",icon:"🔍",label:"قاعدة بيانات الطلاب"}, {k:"settings",icon:"⚙",label:"الإعدادات"} ],
+  admin:      [ {k:"admin_new", icon:"✦", label:"مظروف جديد"}, {k:"admin_list",icon:"📦",label:"المظاريف"}, {k:"students_db",icon:"🔍",label:"قاعدة بيانات الطلاب"}, {k:"admin_notifications",icon:"🔔",label:"كل التنبيهات"}, {k:"settings",icon:"⚙",label:"الإعدادات"} ],
   controller: [ {k:"ctrl_scan",icon:"📡",label:"مسح الباركود"}, {k:"ctrl_list",icon:"📋",label:"المظاريف"}, {k:"ctrl_schedule",icon:"📅",label:"جدول الاختبارات"}, {k:"ctrl_report",icon:"📄",label:"تقارير PDF"}, {k:"ctrl_minutes",icon:"📝",label:"محضر فتح المظاريف"}, {k:"students_db",icon:"🔍",label:"قاعدة بيانات الطلاب"}, {k:"inbox",icon:"🔔",label:"تنبيهات"} ],
   notifier:   [ {k:"notif_send",icon:"💬",label:"إرسال تنبيه"}, {k:"notif_absence",icon:"🧑‍🎓",label:"رصد غياب الطلاب"}, {k:"notif_log",icon:"📜",label:"سجل التنبيهات"}, {k:"inbox",icon:"🔔",label:"تنبيهات"} ],
   principal:  [ {k:"principal_report",icon:"📈",label:"التقارير"}, {k:"principal_approvals",icon:"✅",label:"اعتماد المستندات"}, {k:"principal_archive",icon:"🗄",label:"الأرشيف النهائي"}, {k:"students_db",icon:"🔍",label:"قاعدة بيانات الطلاب"}, {k:"principal_compose",icon:"✉️",label:"إرسال رسالة"}, {k:"principal_sent",icon:"📤",label:"الرسائل المُرسَلة"} ],
@@ -1800,6 +1800,7 @@ function navigateTo(page) {
     case "principal_compose":   renderPrincipalCompose(el);   break;
     case "principal_sent":      renderPrincipalSent(el);      break;
     case "inbox":               renderInbox(el);              break;
+    case "admin_notifications": renderAdminNotifications(el); break;
     case "monitor_committees":  renderMonitorCommittees(el);  break;
     case "monitor_papers":      renderMonitorPapers(el);      break;
     case "monitor_students":    renderMonitorStudents(el);    break;
@@ -7524,6 +7525,95 @@ function renderPrincipalSent(el){
 }
 
 // ─── inbox (controller / notifier / principal replies) ──
+let _adminNotifType="", _adminNotifRole="";
+function _adminNotifFiltered(){
+  return (state.inbox||[]).filter(m=>{
+    if(_adminNotifType && m.type!==_adminNotifType) return false;
+    if(_adminNotifRole && m.to!==_adminNotifRole) return false;
+    return true;
+  }).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+}
+function adminNotifUpdate(field,val){
+  if(field==="type") _adminNotifType=val;
+  if(field==="role") _adminNotifRole=val;
+  _adminNotifRenderResults();
+}
+function _adminNotifRenderResults(){
+  const box=document.getElementById("anf_resultsBox");
+  if(!box) return;
+  const list=_adminNotifFiltered();
+  box.innerHTML = list.length===0
+    ? `<div class="empty"><span class="empty-icon">📭</span>لا توجد تنبيهات مطابقة</div>`
+    : `<div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:680px">
+      <thead><tr style="background:var(--navy);color:#fff">
+        <th style="padding:9px 10px;text-align:right">التصنيف</th>
+        <th style="padding:9px 10px;text-align:right">من</th>
+        <th style="padding:9px 10px;text-align:right">إلى</th>
+        <th style="padding:9px 10px;text-align:right">العنوان</th>
+        <th style="padding:9px 10px;text-align:right">التاريخ</th>
+        <th style="padding:9px 10px;text-align:center">الحالة</th>
+      </tr></thead>
+      <tbody>
+        ${list.map((m,i)=>{
+          const mt=_mtOf(m.type);
+          return `<tr style="border-bottom:1px solid var(--border);background:${i%2===0?"#fff":"var(--bg)"}">
+            <td style="padding:9px 10px"><span style="background:${mt.bg};color:${mt.color};font-weight:700;padding:3px 9px;border-radius:99px;font-size:11px;white-space:nowrap">${mt.icon} ${mt.label}</span></td>
+            <td style="padding:9px 10px;font-weight:700;color:var(--navy);white-space:nowrap">${m.from||"—"}</td>
+            <td style="padding:9px 10px;color:var(--mid);white-space:nowrap">${ROLE_LABEL[m.to]||m.to||"—"}</td>
+            <td style="padding:9px 10px;color:var(--text)">${m.title||m.body||"—"}</td>
+            <td style="padding:9px 10px;color:var(--muted);white-space:nowrap">${fmt(m.ts)}</td>
+            <td style="padding:9px 10px;text-align:center">${m.read?`<span style="color:var(--muted);font-size:11px">مقروء</span>`:`<span style="background:#EF4444;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px">جديد</span>`}</td>
+          </tr>`;
+        }).join("")}
+      </tbody>
+    </table>
+  </div>`;
+}
+function renderAdminNotifications(el){
+  if(!state.inbox) state.inbox=[];
+  const all=state.inbox;
+  const counts={};
+  MSG_TYPES.forEach(t=>counts[t.key]=all.filter(m=>m.type===t.key).length);
+  el.innerHTML=`
+  <div class="page-wrap">
+    <div class="card">
+      <p class="card-title"><span class="ct-icon">🔔</span>كل التنبيهات في النظام
+        <span style="margin-right:auto;font-size:12px;font-weight:700;color:var(--muted)">${all.length} تنبيه</span>
+      </p>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:14px">عرض شامل ومصنف لكل التنبيهات المتبادلة بين الحسابات — مع توضيح المصدر والوجهة لكل تنبيه</p>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:14px">
+        ${MSG_TYPES.map(t=>`
+          <div style="background:${t.bg};border:1px solid ${t.color}30;border-radius:10px;padding:10px;text-align:center">
+            <div style="font-size:16px">${t.icon}</div>
+            <div style="font-size:18px;font-weight:800;color:${t.color}">${counts[t.key]||0}</div>
+            <div style="font-size:10px;color:var(--muted)">${t.label}</div>
+          </div>`).join("")}
+      </div>
+
+      <div class="g2" style="margin-bottom:14px">
+        <div>
+          <label class="lbl">تصنيف التنبيه</label>
+          <select class="inp" onchange="adminNotifUpdate('type',this.value)">
+            <option value="">-- كل التصنيفات --</option>
+            ${MSG_TYPES.map(t=>`<option value="${t.key}">${t.icon} ${t.label}</option>`).join("")}
+          </select>
+        </div>
+        <div>
+          <label class="lbl">موجّه إلى</label>
+          <select class="inp" onchange="adminNotifUpdate('role',this.value)">
+            <option value="">-- كل الحسابات --</option>
+            ${Object.keys(ROLE_LABEL).map(r=>`<option value="${r}">${ROLE_LABEL[r]}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+
+      <div id="anf_resultsBox"></div>
+    </div>
+  </div>`;
+  _adminNotifRenderResults();
+}
 function renderInbox(el){
   if(!state.inbox) state.inbox=[];
   const myMsgs=state.inbox.filter(m=>m.to===currentUser.role)
