@@ -3828,7 +3828,7 @@ function renderMonitorPapers(el) {
         <div class="g2" style="margin-bottom:10px">
           <div>
             <label class="lbl">اسم الملاحظ المسلِّم</label>
-            <input class="inp" id="ppObserver" placeholder="اسم الملاحظ"/>
+            <select class="inp" id="ppObserver">${teacherOptions()}</select>
           </div>
           <div>
             <label class="lbl">عدد الطلاب الحاضرين</label>
@@ -3929,6 +3929,12 @@ function saveMonitorPapers() {
 // التعهدات الإلكترونية
 // ─────────────────────────────────────────────
 // قائمة جميع نماذج التعهدات
+// قائمة المعلمين مرتبة أبجدياً لاستخدامها في النماذج
+function teacherOptions(addEmpty=true) {
+  const sorted = [...(state.teachers||[])].sort((a,b)=>a.name.localeCompare(b.name,"ar"));
+  return (addEmpty?`<option value="">-- اختر الملاحظ --</option>`:"")+sorted.map(t=>`<option value="${t.name}">${t.name}</option>`).join("");
+}
+
 const PLEDGE_FORMS = [
   {
     key:"iqrar_general", icon:"📝", label:"إقرار", color:"#64748B", category:"إقرارات",
@@ -3944,9 +3950,9 @@ const PLEDGE_FORMS = [
     subTitle:"اختبار نهاية الفصل الدراسي الثاني للعام الدراسي ١٤٤٧هـ",
     hasStudentFields:true, hasStudentSig:false, hasMonitorSig:true,
     extraFields:[
-      {id:"st_observer1",label:"اسم الملاحظ الأول",placeholder:"الاسم"},
-      {id:"st_observer2",label:"اسم الملاحظ الثاني",placeholder:"الاسم"},
-      {id:"st_supervisor",label:"المسؤول عن لجنة التحكم والضبط",placeholder:"الاسم"},
+      {id:"st_observer1",label:"اسم الملاحظ الأول",type:"teacher_select"},
+      {id:"st_observer2",label:"اسم الملاحظ الثاني",type:"teacher_select"},
+      {id:"st_supervisor",label:"المسؤول عن لجنة التحكم والضبط",type:"teacher_select"},
     ]
   },
   {
@@ -3990,8 +3996,8 @@ const PLEDGE_FORMS = [
     extraFields:[
       {id:"st_paragraphs",label:"الفقرات التي استفاد منها",type:"textarea",placeholder:"اذكر الفقرات..."},
       {id:"st_deducted",label:"الدرجات المخصومة",placeholder:"0",type:"number"},
-      {id:"st_teacher",label:"معلم المادة",placeholder:"الاسم"},
-      {id:"st_supervisor",label:"منسق لجنة التحكم والضبط",placeholder:"الاسم"},
+      {id:"st_teacher",label:"معلم المادة",type:"teacher_select"},
+      {id:"st_supervisor",label:"منسق لجنة التحكم والضبط",type:"teacher_select"},
     ]
   },
   {
@@ -4005,7 +4011,7 @@ const PLEDGE_FORMS = [
       {id:"st_vtype",label:"نوع المخالفة",type:"select",options:["فردي","جماعي"]},
       {id:"st_semester",label:"الفصل الدراسي",type:"select",options:["الأول","الثاني"]},
       {id:"st_vrep",label:"تكرار المخالفة",type:"select",options:["الأولى","الثانية","الثالثة"]},
-      {id:"st_observer_name",label:"اسم ملاحظ اللجنة",placeholder:"الاسم"},
+      {id:"st_observer_name",label:"اسم ملاحظ اللجنة",type:"teacher_select"},
     ]
   },
   {
@@ -4032,7 +4038,7 @@ const PLEDGE_FORMS = [
       {id:"st_vtype",label:"نوع المخالفة",type:"select",options:["فردي","جماعي"]},
       {id:"st_semester",label:"الفصل الدراسي",type:"select",options:["الأول","الثاني"]},
       {id:"st_vrep",label:"تكرار المخالفة",type:"select",options:["الأولى","الثانية","الثالثة"]},
-      {id:"st_observer_name",label:"اسم ملاحظ اللجنة",placeholder:"الاسم"},
+      {id:"st_observer_name",label:"اسم ملاحظ اللجنة",type:"teacher_select"},
     ]
   },
   {
@@ -4107,6 +4113,7 @@ function showPledgeForm(pledgeType) {
   const gradeOptions = state.grades.map(g=>`<option>${g}</option>`).join("");
 
   const buildField = field => {
+    if(field.type==="teacher_select") return `<div><label class="lbl">${field.label}</label><select class="inp" id="${field.id}">${teacherOptions()}</select></div>`;
     if(field.type==="select") return `<div><label class="lbl">${field.label}</label><select class="inp" id="${field.id}"><option value="">-- اختر --</option>${(field.options||[]).map(o=>`<option>${o}</option>`).join("")}</select></div>`;
     if(field.type==="textarea") return `<div style="grid-column:1/-1"><label class="lbl">${field.label}</label><textarea class="inp" id="${field.id}" rows="2" placeholder="${field.placeholder||""}" style="resize:vertical"></textarea></div>`;
     if(field.type==="date") return `<div><label class="lbl">${field.label}</label><input class="inp" id="${field.id}" type="date" value="${today}"/></div>`;
