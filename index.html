@@ -506,12 +506,30 @@ label.lbl{font-size:12px;color:var(--mid);display:block;margin-bottom:5px;font-w
           </div>
           <span style="color:rgba(255,255,255,.35);font-size:18px">←</span>
         </button>
-        <button onclick="quickLogin('monitor','mon123')"
+        <button onclick="quickLogin('monitor1','mon123')"
           style="display:flex;align-items:center;gap:12px;padding:13px 15px;background:linear-gradient(135deg,#831843,#9D174D);border:none;border-radius:12px;cursor:pointer;width:100%;font-family:inherit">
           <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">👁</div>
           <div style="flex:1;text-align:right">
-            <p style="color:#fff;font-weight:700;font-size:13px;margin:0">مراقب اللجان</p>
-            <p style="color:rgba(255,255,255,.5);font-size:11px;margin:0;font-family:monospace;direction:ltr">monitor / mon123</p>
+            <p style="color:#fff;font-weight:700;font-size:13px;margin:0">المراقب الأول (لجان 1-7)</p>
+            <p style="color:rgba(255,255,255,.5);font-size:11px;margin:0;font-family:monospace;direction:ltr">monitor1 / mon123</p>
+          </div>
+          <span style="color:rgba(255,255,255,.35);font-size:18px">←</span>
+        </button>
+        <button onclick="quickLogin('monitor2','mon123')"
+          style="display:flex;align-items:center;gap:12px;padding:13px 15px;background:linear-gradient(135deg,#831843,#9D174D);border:none;border-radius:12px;cursor:pointer;width:100%;font-family:inherit">
+          <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">👁</div>
+          <div style="flex:1;text-align:right">
+            <p style="color:#fff;font-weight:700;font-size:13px;margin:0">المراقب الثاني (لجان 8-14)</p>
+            <p style="color:rgba(255,255,255,.5);font-size:11px;margin:0;font-family:monospace;direction:ltr">monitor2 / mon123</p>
+          </div>
+          <span style="color:rgba(255,255,255,.35);font-size:18px">←</span>
+        </button>
+        <button onclick="quickLogin('monitor3','mon123')"
+          style="display:flex;align-items:center;gap:12px;padding:13px 15px;background:linear-gradient(135deg,#831843,#9D174D);border:none;border-radius:12px;cursor:pointer;width:100%;font-family:inherit">
+          <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">👁</div>
+          <div style="flex:1;text-align:right">
+            <p style="color:#fff;font-weight:700;font-size:13px;margin:0">المراقب الثالث (لجان 15-20 + الخاصة)</p>
+            <p style="color:rgba(255,255,255,.5);font-size:11px;margin:0;font-family:monospace;direction:ltr">monitor3 / mon123</p>
           </div>
           <span style="color:rgba(255,255,255,.35);font-size:18px">←</span>
         </button>
@@ -654,7 +672,9 @@ async function loadFromCloud() {
     var defaultUsers = [
       { id:"U1", name:"مدير النظام",        username:"admin",     password:"admin123", role:"admin"      },
       { id:"U2", name:"الكنترول",           username:"ctrl",      password:"ctrl123",  role:"controller" },
-      { id:"U5", name:"مراقب اللجان",       username:"monitor",   password:"mon123",   role:"monitor"    },
+      { id:"U5", name:"المراقب الأول",      username:"monitor1",  password:"mon123",   role:"monitor", assignedCommittees:["1","2","3","4","5","6","7"] },
+      { id:"U6", name:"المراقب الثاني",     username:"monitor2",  password:"mon123",   role:"monitor", assignedCommittees:["8","9","10","11","12","13","14"] },
+      { id:"U7", name:"المراقب الثالث",     username:"monitor3",  password:"mon123",   role:"monitor", assignedCommittees:["15","16","17","18","19","20","خاصة"] },
       { id:"U3", name:"مسؤول التنبيهات",    username:"notify",    password:"1234",     role:"notifier"   },
       { id:"U4", name:"مدير المدرسة",       username:"principal", password:"prin123",  role:"principal"  },
     ];
@@ -1422,7 +1442,9 @@ let state = {
   users: [
     { id:"U1", name:"مدير النظام",        username:"admin",     password:"admin123", role:"admin"      },
     { id:"U2", name:"الكنترول",           username:"ctrl",      password:"ctrl123",  role:"controller" },
-    { id:"U5", name:"مراقب اللجان",       username:"monitor",   password:"mon123",   role:"monitor"    },
+    { id:"U5", name:"المراقب الأول",      username:"monitor1",  password:"mon123",   role:"monitor", assignedCommittees:["1","2","3","4","5","6","7"] },
+    { id:"U6", name:"المراقب الثاني",     username:"monitor2",  password:"mon123",   role:"monitor", assignedCommittees:["8","9","10","11","12","13","14"] },
+    { id:"U7", name:"المراقب الثالث",     username:"monitor3",  password:"mon123",   role:"monitor", assignedCommittees:["15","16","17","18","19","20","خاصة"] },
     { id:"U3", name:"مسؤول التنبيهات",    username:"notify",    password:"1234",     role:"notifier"   },
     { id:"U4", name:"مدير المدرسة",       username:"principal", password:"prin123",  role:"principal"  },
   ],
@@ -1434,7 +1456,7 @@ let state = {
   monitorStudentObs: [], // [{id,targetType,name/teacherId,hall,obsType,note,savedAt}]
   monitorDailyReports: [], // daily committee reports
   approvals: [], // [{id,docType,docId,title,subtitle,submittedBy,submittedAt,status,principalName,principalSig,decidedAt,rejectReason}]
-  studentsDB: SEED_STUDENTS.map((s,i)=>({id:"S"+i,name:s.n,sid:s.sid,phone:s.ph,committee:s.c,grade:(i<=263?"أول ثانوي":i<=488?"ثاني ثانوي":"ثالث ثانوي")})), // [{id,name,sid,phone,committee,grade}]
+  studentsDB: SEED_STUDENTS.map((s,i)=>({id:"S"+i,name:s.n,sid:s.sid,phone:s.ph,committee:s.c,grade:(i<=263?"أول ثانوي":i<=488?"ثاني ثانوي":"ثالث ثانوي"),specialNeeds:""})), // [{id,name,sid,phone,committee,grade,specialNeeds}]
   absenceLog: [], // [{id,date,grade,committee,names,note,savedAt,user}]
 };
 
@@ -1456,7 +1478,7 @@ const PAGES = {
   controller: [ {k:"ctrl_scan",icon:"📡",label:"مسح الباركود"}, {k:"ctrl_list",icon:"📋",label:"المظاريف"}, {k:"ctrl_schedule",icon:"📅",label:"جدول الاختبارات"}, {k:"ctrl_report",icon:"📄",label:"تقارير PDF"}, {k:"ctrl_minutes",icon:"📝",label:"محضر فتح المظاريف"}, {k:"students_db",icon:"🔍",label:"قاعدة بيانات الطلاب"}, {k:"inbox",icon:"🔔",label:"تنبيهات"} ],
   notifier:   [ {k:"notif_send",icon:"💬",label:"إرسال تنبيه"}, {k:"notif_absence",icon:"🧑‍🎓",label:"رصد غياب الطلاب"}, {k:"notif_log",icon:"📜",label:"سجل التنبيهات"}, {k:"inbox",icon:"🔔",label:"تنبيهات"} ],
   principal:  [ {k:"principal_report",icon:"📈",label:"التقارير"}, {k:"principal_approvals",icon:"✅",label:"اعتماد المستندات"}, {k:"principal_archive",icon:"🗄",label:"الأرشيف النهائي"}, {k:"students_db",icon:"🔍",label:"قاعدة بيانات الطلاب"}, {k:"principal_compose",icon:"✉️",label:"إرسال رسالة"}, {k:"principal_sent",icon:"📤",label:"الرسائل المُرسَلة"} ],
-  monitor:    [ {k:"monitor_committees",icon:"👁",label:"متابعة اللجان"}, {k:"monitor_papers",icon:"📄",label:"عد الأوراق"}, {k:"monitor_students",icon:"🧑‍🎓",label:"متابعة الطلاب"}, {k:"monitor_daily",icon:"📊",label:"تقرير يومي"}, {k:"monitor_pledge",icon:"📋",label:"التعهدات"}, {k:"monitor_reports",icon:"🗂",label:"تقارير المراقب"}, {k:"students_db",icon:"🔍",label:"قاعدة بيانات الطلاب"} ],
+  monitor:    [ {k:"monitor_committees",icon:"👁",label:"متابعة اللجان"}, {k:"monitor_papers",icon:"📄",label:"عد الأوراق"}, {k:"monitor_students",icon:"🧑‍🎓",label:"متابعة الطلاب"}, {k:"monitor_daily",icon:"📊",label:"تقرير يومي"}, {k:"monitor_pledge",icon:"📋",label:"التعهدات"}, {k:"monitor_reports",icon:"🗂",label:"تقارير المراقب"}, {k:"students_db",icon:"🔍",label:"قاعدة بيانات الطلاب"}, {k:"monitor_stats",icon:"📈",label:"إحصائياتي"} ],
 };
 
 // ═══════════════════════════════════════════════
@@ -1630,7 +1652,9 @@ function quickLogin(username, password) {
   var allUsers = (state.users && state.users.length > 0) ? state.users : [
     {id:"U1",name:"مدير النظام",      username:"admin",     password:"admin123", role:"admin"},
     {id:"U2",name:"الكنترول",         username:"ctrl",      password:"ctrl123",  role:"controller"},
-    {id:"U5",name:"مراقب اللجان",     username:"monitor",   password:"mon123",   role:"monitor"},
+    {id:"U5",name:"المراقب الأول",   username:"monitor1",  password:"mon123",   role:"monitor", assignedCommittees:["1","2","3","4","5","6","7"]},
+    {id:"U6",name:"المراقب الثاني",  username:"monitor2",  password:"mon123",   role:"monitor", assignedCommittees:["8","9","10","11","12","13","14"]},
+    {id:"U7",name:"المراقب الثالث",  username:"monitor3",  password:"mon123",   role:"monitor", assignedCommittees:["15","16","17","18","19","20","خاصة"]},
     {id:"U3",name:"مسؤول التنبيهات", username:"notify",    password:"1234",     role:"notifier"},
     {id:"U4",name:"مدير المدرسة",     username:"principal", password:"prin123",  role:"principal"},
   ];
@@ -1782,6 +1806,7 @@ function navigateTo(page) {
     case "monitor_daily":       renderMonitorDaily(el);       break;
     case "monitor_pledge":      renderMonitorPledge(el);      break;
     case "monitor_reports":     renderMonitorReports(el);     break;
+    case "monitor_stats":       renderMonitorStats(el);       break;
     case "students_db":         renderStudentsDB(el);         break;
     default: el.innerHTML="<p class='empty'>الصفحة غير موجودة</p>";
   }
@@ -2751,7 +2776,7 @@ function abRefreshStudentChecklist() {
   if(students.length===0) { box.innerHTML = `<p style="font-size:12px;color:var(--muted);text-align:center;padding:8px">لا يوجد طلاب مسجلون في هذه اللجنة</p>`; return; }
   box.innerHTML = students.map(s=>`
     <label style="display:flex;align-items:center;gap:8px;padding:5px 2px;font-size:13px;cursor:pointer">
-      <input type="checkbox" class="ab_student_chk" value="${s.name}" data-grade="${s.grade||""}"> ${s.name}
+      <input type="checkbox" class="ab_student_chk" value="${s.name}" data-grade="${s.grade||""}"> ${s.name}${isSpecialStudent(s)?` <span style="font-size:10px;font-weight:800;color:#92400E;background:#FEF3C7;padding:1px 6px;border-radius:99px">⚠ ${s.specialNeeds||"احتياج خاص"}</span>`:""}
     </label>`).join("");
 }
 function saveAbsenceLog() {
@@ -3020,6 +3045,7 @@ function renderSUsers(el) {
             <span style="font-size:11px;color:var(--muted);margin-right:5px;font-family:monospace">${u.username}</span>
           </div>
           <span class="tag" style="background:${bg};color:${col}">${ROLE_LABEL[u.role]||u.role}</span>
+          ${u.role==="monitor"&&u.assignedCommittees&&u.assignedCommittees.length?`<span class="tag" style="background:#F1F5F9;color:#334155">لجان: ${u.assignedCommittees.join("، ")}</span>`:""}
           ${u.id!==(currentUser&&currentUser.id)?`<button class="del-btn" onclick="state.users=state.users.filter(x=>x.id!='${u.id}');saveState();renderSTabContent()">×</button>`:""}
         </div>`;
       }).join("")}
@@ -3032,13 +3058,17 @@ function renderSUsers(el) {
     </div>
     <div class="g2" style="margin-bottom:12px">
       <input class="inp" id="nu_pass" placeholder="كلمة المرور" dir="ltr"/>
-      <select class="inp" id="nu_role">
+      <select class="inp" id="nu_role" onchange="document.getElementById('nu_committeesWrap').style.display=this.value==='monitor'?'block':'none'">
         <option value="admin">مدير النظام</option>
         <option value="principal">مدير المدرسة</option>
         <option value="controller">الكنترول</option>
         <option value="notifier">مسؤول التنبيهات</option>
         <option value="monitor">مراقب اللجان</option>
       </select>
+    </div>
+    <div id="nu_committeesWrap" style="margin-bottom:12px">
+      <label class="lbl">اللجان المخصصة لهذا المراقب (مفصولة بفاصلة، مثال: 1,2,3 أو خاصة)</label>
+      <input class="inp" id="nu_committees" placeholder="مثال: 15,16,17,18,19,20,خاصة" dir="ltr"/>
     </div>
     <button class="btn btn-navy btn-full" onclick="addUser()">إضافة الحساب</button>
   </div>`;
@@ -3051,7 +3081,12 @@ function addUser() {
   const role=(document.getElementById("nu_role")||{value:""}).value;
   if(!name||!username||!password){ toast("أكمل البيانات","err"); return; }
   if(state.users.find(u=>u.username===username)){ toast("اسم المستخدم موجود مسبقاً","err"); return; }
-  state.users.push({ id:"U"+uid(), name, username, password, role });
+  const newUser = { id:"U"+uid(), name, username, password, role };
+  if(role==="monitor"){
+    const raw=(document.getElementById("nu_committees")||{value:""}).value.trim();
+    if(raw) newUser.assignedCommittees = raw.split(",").map(c=>c.trim()).filter(Boolean);
+  }
+  state.users.push(newUser);
   saveState();
   toast("تم إضافة الحساب ✅");
   renderSTabContent();
@@ -5753,13 +5788,17 @@ function printDailyReport(id) {
 let _sdbQ = "", _sdbCommittee = "", _sdbGrade = "";
 function _sdbCommittees() {
   const set = new Set((state.studentsDB||[]).map(s=>s.committee).filter(Boolean));
-  return Array.from(set).sort((a,b)=>{
+  let list = Array.from(set).sort((a,b)=>{
     const an=parseInt(a), bn=parseInt(b);
     if(!isNaN(an)&&!isNaN(bn)) return an-bn;
     if(!isNaN(an)) return -1;
     if(!isNaN(bn)) return 1;
     return String(a).localeCompare(String(b));
   });
+  if(currentUser && currentUser.role==="monitor" && currentUser.assignedCommittees && currentUser.assignedCommittees.length){
+    list = list.filter(c=>currentUser.assignedCommittees.includes(c));
+  }
+  return list;
 }
 function _sdbGrades() {
   const set = new Set((state.studentsDB||[]).map(s=>s.grade).filter(Boolean));
@@ -5767,7 +5806,9 @@ function _sdbGrades() {
 }
 function _sdbFiltered() {
   const q = _sdbQ.trim();
+  const visible = (currentUser && currentUser.role==="monitor" && currentUser.assignedCommittees && currentUser.assignedCommittees.length) ? currentUser.assignedCommittees : null;
   return (state.studentsDB||[]).filter(s=>{
+    if(visible && !visible.includes(s.committee)) return false;
     if(_sdbCommittee && s.committee!==_sdbCommittee) return false;
     if(_sdbGrade && s.grade!==_sdbGrade) return false;
     if(q && !(s.name.includes(q) || (s.sid||"").includes(q) || (s.phone||"").includes(q))) return false;
@@ -5783,7 +5824,8 @@ function sdbUpdate(field, val) {
 function renderStudentsDB(el) {
   const committees = _sdbCommittees();
   const grades = _sdbGrades();
-  const total = (state.studentsDB||[]).length;
+  const isMonitorScoped = currentUser && currentUser.role==="monitor" && currentUser.assignedCommittees && currentUser.assignedCommittees.length;
+  const total = isMonitorScoped ? (state.studentsDB||[]).filter(s=>currentUser.assignedCommittees.includes(s.committee)).length : (state.studentsDB||[]).length;
   const isAdmin = currentUser && currentUser.role==="admin";
   el.innerHTML = `
   <div class="page-wrap" style="max-width:860px">
@@ -5852,6 +5894,7 @@ function renderStudentsDB(el) {
   </div>`;
   _sdbRenderResults();
 }
+function isSpecialStudent(s) { return !!(s && (s.committee==="خاصة" || s.specialNeeds)); }
 function _sdbRenderResults() {
   const box = document.getElementById("sdb_resultsBox");
   if(!box) return;
@@ -5865,16 +5908,27 @@ function _sdbRenderResults() {
         ${list.slice(0,200).map(s=>`
         <div style="display:flex;align-items:center;gap:10px;background:var(--bg);border-radius:10px;padding:10px 12px;border:1px solid var(--border)">
           <div style="flex:1;min-width:0">
-            <p style="font-size:13px;font-weight:800;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.name}</p>
+            <p style="font-size:13px;font-weight:800;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.name} ${isSpecialStudent(s)?`<span style="font-size:10px;font-weight:800;color:#92400E;background:#FEF3C7;padding:2px 7px;border-radius:99px">⚠ ${s.specialNeeds||"احتياج خاص"}</span>`:""}</p>
             <p style="font-size:11px;color:var(--muted);margin-top:2px">رقم الطالب: ${s.sid||"—"} ${s.grade?" | "+s.grade:""}</p>
           </div>
           <span style="font-size:11px;font-weight:800;color:#1E40AF;background:#DBEAFE;padding:4px 10px;border-radius:99px;flex-shrink:0">لجنة ${s.committee||"—"}</span>
           <a href="tel:+${s.phone}" style="font-size:12px;font-weight:700;color:#059669;background:#D1FAE5;padding:4px 10px;border-radius:99px;flex-shrink:0;text-decoration:none">📱 ${s.phone||"—"}</a>
+          ${isAdmin?`<button class="btn btn-outline btn-sm" style="padding:4px 9px;font-size:11px" onclick="sdbSetSpecialNeeds('${s.id}')" title="ملاحظة خاصة">🏷️</button>`:""}
           ${isAdmin?`<button class="del-btn" onclick="sdbDelete('${s.id}')" title="حذف">×</button>`:""}
         </div>`).join("")}
         ${list.length>200?`<p style="font-size:11px;color:var(--muted);text-align:center;padding:6px">تم عرض أول 200 نتيجة فقط — استخدم البحث لتضييق النتائج</p>`:""}
       </div>`}
   `;
+}
+function sdbSetSpecialNeeds(id) {
+  const s = (state.studentsDB||[]).find(x=>x.id===id);
+  if(!s) return;
+  const val = prompt("اكتب نوع الاحتياج الخاص لهذا الطالب (مثال: توحد، تأخر تعليمي، صعوبات تعلم) — اتركه فارغاً لإزالة الملاحظة:", s.specialNeeds||"");
+  if(val===null) return;
+  s.specialNeeds = val.trim();
+  saveState(); saveToCloud();
+  toast("تم تحديث الملاحظة ✅");
+  _sdbRenderResults();
 }
 function downloadStudentTemplate() {
   if(typeof XLSX === "undefined") { toast("مكتبة Excel غير محملة، تحقق من الاتصال بالإنترنت","err"); return; }
@@ -6133,7 +6187,7 @@ function sobsRefreshStudentOptions() {
     return;
   }
   const students = (state.studentsDB||[]).filter(s=>s.committee===committee).sort((a,b)=>a.name.localeCompare(b.name));
-  sel.innerHTML = `<option value="">-- اختر الطالب --</option>` + students.map(s=>`<option value="${s.name}">${s.name}</option>`).join("");
+  sel.innerHTML = `<option value="">-- اختر الطالب --</option>` + students.map(s=>`<option value="${s.name}">${isSpecialStudent(s)?"⚠ ":""}${s.name}</option>`).join("");
   sel.disabled = false;
 }
 function sobsAutoGrade() {
@@ -6142,6 +6196,7 @@ function sobsAutoGrade() {
   const student = (state.studentsDB||[]).find(s=>s.committee===committee && s.name===name);
   const gradeSel = document.getElementById("sobs_grade");
   if(student && student.grade && gradeSel) gradeSel.value = student.grade;
+  if(student && isSpecialStudent(student)) toast("⚠ هذا الطالب لديه احتياج خاص: "+(student.specialNeeds||"يرجى مراعاة حالته"),"err");
 }
 function saveStudentObs() {
   const name = (document.getElementById("sobs_name")||{}).value?.trim();
@@ -6326,7 +6381,7 @@ function pledgeRefreshStudentOptions() {
     return;
   }
   const students = (state.studentsDB||[]).filter(s=>s.committee===committee).sort((a,b)=>a.name.localeCompare(b.name));
-  sel.innerHTML = `<option value="">-- اختر الطالب --</option>` + students.map(s=>`<option value="${s.id}">${s.name}</option>`).join("");
+  sel.innerHTML = `<option value="">-- اختر الطالب --</option>` + students.map(s=>`<option value="${s.id}">${isSpecialStudent(s)?"⚠ ":""}${s.name}</option>`).join("");
   sel.disabled = false;
 }
 function pledgeApplyStudentSelection() {
@@ -6336,6 +6391,7 @@ function pledgeApplyStudentSelection() {
   if(student) {
     const civil = document.getElementById("st_civil"); if(civil) civil.value = student.sid||"";
     const grade = document.getElementById("st_grade"); if(grade && student.grade) grade.value = student.grade;
+    if(isSpecialStudent(student)) toast("⚠ هذا الطالب لديه احتياج خاص: "+(student.specialNeeds||"يرجى مراعاة حالته"),"err");
   }
 }
 function saveMonitorPledge(pledgeType) {
@@ -6409,6 +6465,38 @@ function renderMonitorReports(el) {
             </div>
           </div>`;
         }).join("")}
+    </div>
+  </div>`;
+}
+
+function renderMonitorStats(el) {
+  const me = currentUser.name;
+  const myCommittees = currentUser.assignedCommittees || null;
+  const reports = (state.monitorReports||[]).filter(r=>r.type!=="papers" && r.monitorName===me);
+  const papers = (state.monitorReports||[]).filter(r=>r.type==="papers" && r.monitorName===me);
+  const obs = (state.monitorStudentObs||[]).filter(o=>o.recordedBy===me);
+  const notes = (state.monitorNotes||[]).filter(n=>n.user===me);
+  const absences = myCommittees ? (state.absenceLog||[]).filter(a=>myCommittees.includes(a.committee)) : (state.absenceLog||[]);
+  const cards = [
+    { label:"التعهدات والمخالفات", count:reports.length, icon:"📋", color:"#7C3AED" },
+    { label:"تقارير عد الأوراق", count:papers.length, icon:"📄", color:"#F59E0B" },
+    { label:"ملاحظات الطلاب والمعلمين", count:obs.length, icon:"🧑‍🎓", color:"#0EA5E9" },
+    { label:"ملاحظات متابعة اللجان", count:notes.length, icon:"👁", color:"#3B82F6" },
+    { label:"سجلات الغياب (لجاني)", count:absences.length, icon:"🧑‍🎓", color:"#EF4444" },
+  ];
+  el.innerHTML = `
+  <div class="page-wrap">
+    <div class="card">
+      <p class="card-title">📈 إحصائياتي</p>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:14px">ملخص أعمالك المسجلة${myCommittees?` — اللجان المخصصة لك: ${myCommittees.join("، ")}`:""}</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
+        ${cards.map(c=>`
+          <div style="background:${c.color}10;border:1px solid ${c.color}30;border-radius:12px;padding:14px;text-align:center">
+            <div style="font-size:22px;margin-bottom:4px">${c.icon}</div>
+            <div style="font-size:24px;font-weight:800;color:${c.color}">${c.count}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">${c.label}</div>
+          </div>`).join("")}
+      </div>
     </div>
   </div>`;
 }
