@@ -764,7 +764,7 @@ const PAGES = {
   admin:      [ {k:"admin_new", icon:"✦", label:"مظروف جديد"}, {k:"admin_list",icon:"📦",label:"المظاريف"}, {k:"settings",icon:"⚙",label:"الإعدادات"} ],
   controller: [ {k:"ctrl_scan",icon:"📡",label:"مسح الباركود"}, {k:"ctrl_list",icon:"📋",label:"المظاريف"}, {k:"ctrl_schedule",icon:"📅",label:"جدول الاختبارات"}, {k:"ctrl_report",icon:"📄",label:"تقارير PDF"}, {k:"ctrl_minutes",icon:"📝",label:"محضر فتح المظاريف"}, {k:"inbox",icon:"🔔",label:"تنبيهات"} ],
   notifier:   [ {k:"notif_send",icon:"💬",label:"إرسال تنبيه"}, {k:"notif_log",icon:"📜",label:"سجل التنبيهات"}, {k:"inbox",icon:"🔔",label:"تنبيهات"} ],
-  principal:  [ {k:"principal_dashboard",icon:"📊",label:"لوحة المتابعة"}, {k:"principal_report",icon:"📈",label:"التقارير"}, {k:"principal_compose",icon:"✉️",label:"إرسال رسالة"}, {k:"principal_sent",icon:"📤",label:"الرسائل المُرسَلة"} ],
+  principal:  [ {k:"principal_report",icon:"📈",label:"التقارير"}, {k:"principal_compose",icon:"✉️",label:"إرسال رسالة"}, {k:"principal_sent",icon:"📤",label:"الرسائل المُرسَلة"} ],
   monitor:    [ {k:"monitor_committees",icon:"👁",label:"متابعة اللجان"}, {k:"monitor_papers",icon:"📄",label:"عد الأوراق"}, {k:"monitor_pledge",icon:"📋",label:"التعهدات"}, {k:"monitor_reports",icon:"🗂",label:"تقارير المراقب"} ],
 };
 
@@ -773,7 +773,10 @@ const PAGES = {
 // ═══════════════════════════════════════════════
 function uid()    { return Math.random().toString(36).slice(2,8).toUpperCase(); }
 function nowISO() { return new Date().toISOString(); }
-function fmt(iso) { try { return new Date(iso).toLocaleString("ar-SA",{dateStyle:"short",timeStyle:"short"}); } catch(e){ return iso; } }
+function fmt(iso) { try { return new Date(iso).toLocaleString("ar-SA-u-ca-islamic-umalqura",{dateStyle:"short",timeStyle:"short"}); } catch(e){ return iso; } }
+function fmtDate(dateStr) { try { if(!dateStr) return ""; const d=new Date(dateStr); if(isNaN(d)) return dateStr; return d.toLocaleDateString("ar-SA-u-ca-islamic-umalqura",{year:"numeric",month:"long",day:"numeric"}); } catch(e){ return dateStr; } }
+function todayHijri() { return new Date().toLocaleDateString("ar-SA-u-ca-islamic-umalqura",{year:"numeric",month:"long",day:"numeric"}); }
+function inputDateToHijri(val) { try { if(!val) return ""; return new Date(val).toLocaleDateString("ar-SA-u-ca-islamic-umalqura",{year:"numeric",month:"long",day:"numeric"}); } catch(e){ return val; } }
 
 let _toastTimer;
 function toast(msg, type="ok") {
@@ -1010,7 +1013,6 @@ function navigateTo(page) {
     case "notif_log":    renderNotifLog(el);      break;
     case "ctrl_schedule":renderCtrlSchedule(el);  break;
     case "ctrl_report":  renderCtrlReport(el);    break;
-    case "principal_dashboard": renderPrincipalDashboard(el); break;
     case "principal_report":    renderPrincipalReport(el);    break;
     case "principal_compose":   renderPrincipalCompose(el);   break;
     case "principal_sent":      renderPrincipalSent(el);      break;
@@ -1657,7 +1659,7 @@ function renderScanResult() {
       <div class="info-cell"><p class="k">🔏 مدقق 1</p><p class="v">${audT?audT.name:"—"}</p></div>
       ${audT2?`<div class="info-cell"><p class="k">🔏 مدقق 2</p><p class="v">${audT2.name}</p></div>`:""}
       ${b.note?`<div class="info-cell"><p class="k">ملاحظة</p><p class="v">${b.note}</p></div>`:""}
-      ${b.examDate?`<div class="info-cell"><p class="k">📅 يوم الاختبار</p><p class="v">${b.examDay||""} ${b.examDate}</p></div>`:""}
+      ${b.examDate?`<div class="info-cell"><p class="k">📅 يوم الاختبار</p><p class="v">${b.examDay||""} ${inputDateToHijri(b.examDate)}</p></div>`:""}
       ${b.examStart?`<div class="info-cell"><p class="k">⏰ وقت الاختبار</p><p class="v">${b.examStart}${b.examEnd?" — "+b.examEnd:""}</p></div>`:""}
       ${b.examHall?`<div class="info-cell"><p class="k">🏫 القاعة</p><p class="v">${b.examHall}</p></div>`:""}
     </div>
@@ -2228,7 +2230,7 @@ function renderCtrlSchedule(el) {
             <td style="padding:9px 12px;font-weight:700;color:var(--navy)">${b.subject}</td>
             <td style="padding:9px 12px;color:var(--mid)">${b.grade||"—"}</td>
             <td style="padding:9px 12px;color:var(--mid)">${b.examDay||"—"}</td>
-            <td style="padding:9px 12px;color:var(--mid);direction:ltr;text-align:right">${b.examDate}</td>
+            <td style="padding:9px 12px;color:var(--mid);direction:ltr;text-align:right">${inputDateToHijri(b.examDate)}</td>
             <td style="padding:9px 12px;color:var(--mid);direction:ltr;text-align:right">${b.examStart||"—"}${b.examEnd?" — "+b.examEnd:""}</td>
             <td style="padding:9px 12px;color:var(--mid)">${b.examHall||"—"}</td>
             <td style="padding:9px 12px;text-align:center;font-weight:700;color:var(--navy)">${b.count}</td>
@@ -2253,7 +2255,7 @@ function printSchedule() {
       <td style="padding:8px 10px;font-weight:700">${b.subject}</td>
       <td style="padding:8px 10px">${b.grade||"—"}</td>
       <td style="padding:8px 10px">${b.examDay||"—"}</td>
-      <td style="padding:8px 10px;direction:ltr;text-align:right">${b.examDate}</td>
+      <td style="padding:8px 10px;direction:ltr;text-align:right">${inputDateToHijri(b.examDate)}</td>
       <td style="padding:8px 10px;direction:ltr;text-align:right">${b.examStart||"—"}${b.examEnd?" — "+b.examEnd:""}</td>
       <td style="padding:8px 10px">${b.examHall||"—"}</td>
       <td style="padding:8px 10px;text-align:center">${b.count}</td>
@@ -2272,7 +2274,7 @@ function printSchedule() {
   <div style="display:flex;align-items:center;gap:14px;margin-bottom:4px">
     <img src="${LOGO_SRC}" alt="شعار" style="width:100px;height:100px;object-fit:contain"/>
     <div><h1>${state.schoolName}</h1>
-    <p class="sub">جدول الاختبارات — تاريخ الطباعة: ${new Date().toLocaleDateString("ar-SA")}</p></div>
+    <p class="sub">جدول الاختبارات — تاريخ الطباعة: ${new Date().toLocaleDateString("ar-SA-u-ca-islamic-umalqura")}</p></div>
   </div>
   <table>
     <thead><tr>
@@ -2478,7 +2480,7 @@ function generatePDF(subjectFilter) {
   const bundles = subjectFilter==="ALL" ? state.bundles : state.bundles.filter(b=>b.subject===subjectFilter);
   if(bundles.length===0){toast("لا توجد بيانات","err");return;}
   const title = subjectFilter==="ALL" ? "تقرير شامل — جميع المواد" : `تقرير مادة ${subjectFilter}`;
-  const printDate = new Date().toLocaleDateString("ar-SA",{dateStyle:"full"});
+  const printDate = new Date().toLocaleDateString("ar-SA-u-ca-islamic-umalqura",{dateStyle:"full"});
 
   // Summary counts per stage
   const stageSummary = state.stages.map((s,i)=>{
@@ -2501,14 +2503,14 @@ function generatePDF(subjectFilter) {
       <td style="padding:8px 10px;font-weight:700">${b.subject}</td>
       <td style="padding:8px 10px">${b.grade||"—"}</td>
       <td style="padding:8px 10px;text-align:center">${b.count}</td>
-      <td style="padding:8px 10px">${b.examDay||""}${b.examDate?" "+b.examDate:""}</td>
+      <td style="padding:8px 10px">${b.examDay||""}${b.examDate?" "+inputDateToHijri(b.examDate):""}</td>
       <td style="padding:8px 10px">${b.examHall||"—"}</td>
       <td style="padding:8px 10px">${corrT?corrT.name:"—"}</td>
       <td style="padding:8px 10px">${revT?revT.name:"—"}</td>
       <td style="padding:8px 10px">${audT?audT.name:"—"}</td>
       <td style="padding:8px 10px;font-size:11px;font-weight:700;color:${b.stage<0?"#64748b":"#0D1F3C"}">${stageName}</td>
       <td style="padding:8px 10px;font-size:10px;font-family:monospace;direction:ltr;color:#64748b">${bar} ${pct}%</td>
-      <td style="padding:8px 10px;font-size:10px;color:#64748b">${lastLog?new Date(lastLog.ts).toLocaleDateString("ar-SA"):"—"}</td>
+      <td style="padding:8px 10px;font-size:10px;color:#64748b">${lastLog?new Date(lastLog.ts).toLocaleDateString("ar-SA-u-ca-islamic-umalqura"):"—"}</td>
     </tr>`;
   }).join("");
 
@@ -2517,7 +2519,7 @@ function generatePDF(subjectFilter) {
     <div style="margin-bottom:20px;page-break-inside:avoid">
       <h4 style="font-size:13px;color:#0D1F3C;margin-bottom:6px;border-right:3px solid #C8911F;padding-right:8px">
         ${b.barcode} — ${b.subject}${b.grade?" ("+b.grade+")":""} · ${b.count} ورقة
-        ${b.examDate?` · 📅 ${b.examDay||""} ${b.examDate}`:""}
+        ${b.examDate?` · 📅 ${b.examDay||""} ${inputDateToHijri(b.examDate)}`:""}
       </h4>
       <table style="width:100%;border-collapse:collapse;font-size:11px">
         <thead><tr style="background:#f1f5f9">
@@ -3280,7 +3282,7 @@ function renderPrinBundle(el) {
       <div class="info-cell"><p class="k">الصف</p><p class="v">${b.grade||"—"}</p></div>
       <div class="info-cell"><p class="k">عدد الأوراق</p><p class="v">${b.count} ورقة</p></div>
       <div class="info-cell"><p class="k">التقدم</p><p class="v" style="color:${color}">${pct}%</p></div>
-      ${b.examDate?`<div class="info-cell"><p class="k">📅 تاريخ الاختبار</p><p class="v">${b.examDay||""} ${b.examDate}</p></div>`:""}
+      ${b.examDate?`<div class="info-cell"><p class="k">📅 تاريخ الاختبار</p><p class="v">${b.examDay||""} ${inputDateToHijri(b.examDate)}</p></div>`:""}
       ${b.examHall?`<div class="info-cell"><p class="k">🏫 القاعة</p><p class="v">${b.examHall}</p></div>`:""}
       ${b.examStart?`<div class="info-cell"><p class="k">⏰ وقت الاختبار</p><p class="v">${b.examStart}${b.examEnd?" — "+b.examEnd:""}</p></div>`:""}
       ${b.note?`<div class="info-cell" style="grid-column:span 2"><p class="k">ملاحظة</p><p class="v">${b.note}</p></div>`:""}
@@ -3491,7 +3493,7 @@ function renderPrincipalReport(el) {
             +"<td style='text-align:center'><span style='color:#059669;font-weight:700'>"+d.done+"</span></td>"
             +"<td style='text-align:center'><span style='color:#D97706;font-weight:700'>"+d.inProg+"</span></td>"
             +"<td><div style='display:flex;align-items:center;gap:5px'><div style='flex:1;height:6px;background:var(--border);border-radius:99px;overflow:hidden;min-width:45px'><div style='height:100%;width:"+p+"%;background:"+c+";border-radius:99px'></div></div><span style='font-size:11px;font-weight:700;color:"+c+"'>"+p+"%</span></div></td>"
-            +"<td><button onclick='_prinView=&quot;subject&quot;;_prinSubject=&quot;"+subj+"&quot;;_prinGradeFilter=&quot;&quot;;navigateTo(&quot;principal_dashboard&quot;)' style='background:var(--navy);color:#fff;border:none;border-radius:var(--r6);padding:4px 9px;cursor:pointer;font-size:11px;font-family:inherit;font-weight:700'>تفاصيل</button></td></tr>";
+            +"</tr>";
         }).join("")}
       </tbody>
     </table>
@@ -3541,7 +3543,7 @@ function renderPrincipalReport(el) {
 
 function generateIncompletePDF() {
   const incompleteBundles=state.bundles.filter(b=>b.stage<state.stages.length-1);
-  const printDate=new Date().toLocaleDateString("ar-SA",{dateStyle:"full"});
+  const printDate=new Date().toLocaleDateString("ar-SA-u-ca-islamic-umalqura",{dateStyle:"full"});
   if(incompleteBundles.length===0){toast("لا توجد مظاريف غير مكتملة ✅","ok");return;}
   const rows=incompleteBundles.map((b,i)=>{
     const ct=state.teachers.find(t=>t.id===b.corrector);
@@ -3561,7 +3563,7 @@ function generatePrincipalPDF() {
   const newB       = state.bundles.filter(b=>b.stage<0).length;
   const totalPapers= state.bundles.reduce((a,b)=>a+b.count,0);
   const pct        = total>0?Math.round((done/total)*100):0;
-  const printDate  = new Date().toLocaleDateString("ar-SA",{dateStyle:"full"});
+  const printDate  = new Date().toLocaleDateString("ar-SA-u-ca-islamic-umalqura",{dateStyle:"full"});
 
   const subjectRows={};
   state.bundles.forEach(b=>{
@@ -3582,7 +3584,7 @@ function generatePrincipalPDF() {
       <td style="text-align:center">${b.count}</td>
       <td>${corrT?corrT.name:"—"}</td>
       <td style="font-weight:700;color:${b.stage===state.stages.length-1?"#059669":"#0D1F3C"}">${sName}</td>
-      <td style="font-size:10px;color:#64748b">${lastLog?new Date(lastLog.ts).toLocaleDateString("ar-SA"):"—"}</td>
+      <td style="font-size:10px;color:#64748b">${lastLog?new Date(lastLog.ts).toLocaleDateString("ar-SA-u-ca-islamic-umalqura"):"—"}</td>
     </tr>`;
   }).join("");
 
@@ -3725,7 +3727,7 @@ function renderMonitorCommittees(el) {
               return `<tr style="border-bottom:1px solid var(--border);background:${i%2===0?"#fff":"var(--bg)"}">
                 <td style="padding:9px 10px;font-weight:700;color:var(--navy)">${s.subject||"—"}</td>
                 <td style="padding:9px 10px;color:var(--mid)">${s.grade||"—"}</td>
-                <td style="padding:9px 10px;color:var(--mid);direction:ltr;text-align:right">${s.date||"—"}</td>
+                <td style="padding:9px 10px;color:var(--mid)">${inputDateToHijri(s.date)||"—"}</td>
                 <td style="padding:9px 10px;color:var(--mid);direction:ltr;text-align:right">${s.startTime||""}${s.endTime?" — "+s.endTime:""}</td>
                 <td style="padding:9px 10px;color:var(--mid)">${s.hall||"—"}</td>
                 <td style="padding:9px 10px;text-align:center">
@@ -3749,7 +3751,7 @@ function renderMonitorCommittees(el) {
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
             <span style="font-weight:800;color:var(--navy);font-size:13px">${n.subject||"—"} — ${n.grade||"—"}</span>
             <span style="font-size:11px;color:var(--muted)">${n.hall||""}</span>
-            <span style="font-size:11px;color:var(--muted);margin-right:auto">${n.date||""}</span>
+            <span style="font-size:11px;color:var(--muted);margin-right:auto">${inputDateToHijri(n.date)||""}</span>
           </div>
           <p style="font-size:13px;color:var(--dark);margin-bottom:6px">${n.note}</p>
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
@@ -4274,7 +4276,7 @@ function printMonitorReport(id) {
   const title = r.pledgeTitle || (pf?pf.title:"تقرير مراقب اللجان");
   const subTitle = pf && pf.subTitle ? pf.subTitle : "اختبار نهاية الفصل الدراسي الثاني للعام الدراسي ١٤٤٧هـ";
   const color = pf ? pf.color : "#0D1F3C";
-  const printDate = new Date(r.savedAt).toLocaleDateString("ar-SA",{year:"numeric",month:"long",day:"numeric"});
+  const printDate = new Date(r.savedAt).toLocaleDateString("ar-SA-u-ca-islamic-umalqura",{year:"numeric",month:"long",day:"numeric"});
   const d = r.extraData || {};
 
   // بناء نص التعهد
@@ -4290,7 +4292,7 @@ function printMonitorReport(id) {
     r.studentSeat ? ["رقم الجلوس", r.studentSeat] : null,
     r.grade ? ["الصف", r.grade] : null,
     r.subject ? ["المادة", r.subject] : null,
-    r.date ? ["التاريخ", r.date] : null,
+    r.date ? ["التاريخ", inputDateToHijri(r.date)] : null,
   ].filter(Boolean);
 
   // بيانات إضافية حسب النموذج
@@ -4375,7 +4377,7 @@ function printMonitorReport(id) {
       <p class="lbl">توقيع الطالب</p>
       ${sigStHtml}
       <p class="name">${r.studentName||"—"}</p>
-      <p class="name">${r.date||""}</p>
+      <p class="name">${inputDateToHijri(r.date)||""}</p>
     </div>` : ""}
     ${pf && pf.hasMonitorSig ? `
     <div class="sig-box" style="border-color:${color}">
@@ -4410,7 +4412,7 @@ function printMonitorReport(id) {
 
   <div class="footer">
     <span>${state.schoolName} — نظام متابعة الاختبارات الإلكتروني</span>
-    <span>طُبع: ${new Date().toLocaleDateString("ar-SA")} · المراقب: ${r.monitorName||"—"}</span>
+    <span>طُبع: ${new Date().toLocaleDateString("ar-SA-u-ca-islamic-umalqura")} · المراقب: ${r.monitorName||"—"}</span>
   </div>
   <div class="no-print">
     <button onclick="window.print()" style="padding:9px 22px;background:${color};color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;font-weight:700">🖨️ طباعة / PDF</button>
