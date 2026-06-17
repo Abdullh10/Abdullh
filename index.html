@@ -620,7 +620,7 @@ async function saveToCloud() {
     subjects:state.subjects, grades:state.grades,
     stages:state.stages, teachers:state.teachers,
     users:state.users, examSchedule:state.examSchedule||[], minutesData:state.minutesData||null, minutesArchive:state.minutesArchive||[], inbox:state.inbox||[], principalMessages:state.principalMessages||[],
-    monitorReports:state.monitorReports||[], monitorNotes:state.monitorNotes||[]
+    monitorReports:state.monitorReports||[], monitorNotes:state.monitorNotes||[], monitorStudentObs:state.monitorStudentObs||[]
   };
   await sbUpsert("settings", {id:"main", data:settings, updated_at:new Date().toISOString()});
   // Also save to localStorage as backup
@@ -646,7 +646,7 @@ async function loadFromCloud() {
     var rows = await sbGet("settings", {id:"main"});
     if(rows && rows[0] && rows[0].data) {
       var d = rows[0].data;
-      ["schoolName","adminPhone","subjects","grades","stages","teachers","users","examSchedule","minutesData","minutesArchive","inbox","principalMessages","monitorReports","monitorNotes"].forEach(function(k){
+      ["schoolName","adminPhone","subjects","grades","stages","teachers","users","examSchedule","minutesData","minutesArchive","inbox","principalMessages","monitorReports","monitorNotes","monitorStudentObs"].forEach(function(k){
         if(d[k] !== undefined) state[k] = d[k];
       });
     }
@@ -754,6 +754,7 @@ let state = {
   examSchedule: [],  // [{id,subject,grade,day,date,startTime,endTime,hall,note}]
   monitorReports: [], // [{id,type,subject,grade,hall,date,monitorName,count,notes,sig,savedAt}]
   monitorNotes: [],   // [{id,subject,grade,hall,date,note,savedAt,user}]
+  monitorStudentObs: [], // [{id,targetType,name/teacherId,hall,obsType,note,savedAt}]
 };
 
 let currentUser = null;
@@ -774,7 +775,7 @@ const PAGES = {
   controller: [ {k:"ctrl_scan",icon:"📡",label:"مسح الباركود"}, {k:"ctrl_list",icon:"📋",label:"المظاريف"}, {k:"ctrl_schedule",icon:"📅",label:"جدول الاختبارات"}, {k:"ctrl_report",icon:"📄",label:"تقارير PDF"}, {k:"ctrl_minutes",icon:"📝",label:"محضر فتح المظاريف"}, {k:"inbox",icon:"🔔",label:"تنبيهات"} ],
   notifier:   [ {k:"notif_send",icon:"💬",label:"إرسال تنبيه"}, {k:"notif_log",icon:"📜",label:"سجل التنبيهات"}, {k:"inbox",icon:"🔔",label:"تنبيهات"} ],
   principal:  [ {k:"principal_report",icon:"📈",label:"التقارير"}, {k:"principal_compose",icon:"✉️",label:"إرسال رسالة"}, {k:"principal_sent",icon:"📤",label:"الرسائل المُرسَلة"} ],
-  monitor:    [ {k:"monitor_committees",icon:"👁",label:"متابعة اللجان"}, {k:"monitor_papers",icon:"📄",label:"عد الأوراق"}, {k:"monitor_pledge",icon:"📋",label:"التعهدات"}, {k:"monitor_reports",icon:"🗂",label:"تقارير المراقب"} ],
+  monitor:    [ {k:"monitor_committees",icon:"👁",label:"متابعة اللجان"}, {k:"monitor_papers",icon:"📄",label:"عد الأوراق"}, {k:"monitor_students",icon:"🧑‍🎓",label:"متابعة الطلاب"}, {k:"monitor_pledge",icon:"📋",label:"التعهدات"}, {k:"monitor_reports",icon:"🗂",label:"تقارير المراقب"} ],
 };
 
 // ═══════════════════════════════════════════════
@@ -1070,6 +1071,7 @@ function navigateTo(page) {
     case "inbox":               renderInbox(el);              break;
     case "monitor_committees":  renderMonitorCommittees(el);  break;
     case "monitor_papers":      renderMonitorPapers(el);      break;
+    case "monitor_students":    renderMonitorStudents(el);    break;
     case "monitor_pledge":      renderMonitorPledge(el);      break;
     case "monitor_reports":     renderMonitorReports(el);     break;
     default: el.innerHTML="<p class='empty'>الصفحة غير موجودة</p>";
@@ -4287,6 +4289,202 @@ const PLEDGE_FORMS = [
     hasStudentFields:true, hasStudentSig:true, hasMonitorSig:true, extraFields:[]
   },
 ];
+
+// ─────────────────────────────────────────────
+// متابعة الطلاب والملاحظين
+// ─────────────────────────────────────────────
+const STUDENT_OBS_TYPES = [
+  "خروج دورة المياه","خروج مبكر","التحدث مع زميل","الاستئذان","إحضار مسودة إضافية",
+  "تنبيه بالغش","مخالفة أخرى"
+];
+const TEACHER_OBS_TYPES = [
+  "الانشغال بالجوال","الجلوس على كرسي الملاحظ","الاستئذان المتكرر","التحدث مع الطلاب",
+  "التحدث مع ملاحظ آخر","طلب ملاحظ بديل","التغيب عن القاعة","مخالفة أخرى"
+];
+
+let _sobTab = "student"; // "student" | "teacher"
+
+function renderMonitorStudents(el) {
+  const obs = (state.monitorStudentObs||[]).slice().reverse();
+  const studentObs = obs.filter(o=>o.targetType==="student");
+  const teacherObs = obs.filter(o=>o.targetType==="teacher");
+
+  el.innerHTML = `
+  <div class="page-wrap">
+
+  <!-- Tabs -->
+  <div style="display:flex;gap:8px;margin-bottom:14px">
+    <button onclick="_sobTab='student';renderMonitorStudents(document.getElementById('pageContent'))"
+      class="btn${_sobTab==='student'?' btn-navy':''}" style="flex:1;${_sobTab!=='student'?'background:var(--bg);color:var(--navy);border:1.5px solid var(--border)':''}">
+      🧑‍🎓 ملاحظات الطلاب <span style="background:${_sobTab==='student'?'rgba(255,255,255,.25)':'var(--border)'};border-radius:99px;padding:1px 8px;font-size:11px;margin-right:4px">${studentObs.length}</span>
+    </button>
+    <button onclick="_sobTab='teacher';renderMonitorStudents(document.getElementById('pageContent'))"
+      class="btn${_sobTab==='teacher'?' btn-navy':''}" style="flex:1;${_sobTab!=='teacher'?'background:var(--bg);color:var(--navy);border:1.5px solid var(--border)':''}">
+      👨‍🏫 ملاحظات الملاحظين <span style="background:${_sobTab==='teacher'?'rgba(255,255,255,.25)':'var(--border)'};border-radius:99px;padding:1px 8px;font-size:11px;margin-right:4px">${teacherObs.length}</span>
+    </button>
+  </div>
+
+  ${_sobTab==='student' ? `
+  <!-- Student Form -->
+  <div class="card" style="margin-bottom:14px">
+    <p class="card-title"><span class="ct-icon" style="background:#DBEAFE">🧑‍🎓</span>تسجيل ملاحظة على طالب</p>
+    <div class="g2" style="margin-bottom:10px">
+      <div><label class="lbl">اسم الطالب</label><input class="inp" id="sobs_name" placeholder="اسم الطالب كاملاً"/></div>
+      <div><label class="lbl">رقم اللجنة / القاعة</label><input class="inp" id="sobs_hall" placeholder="مثال: ٥" type="text"/></div>
+    </div>
+    <div class="g2" style="margin-bottom:10px">
+      <div><label class="lbl">الصف</label>
+        <select class="inp" id="sobs_grade">
+          <option value="">-- اختر الصف --</option>
+          ${(state.grades||[]).map(g=>`<option>${g}</option>`).join("")}
+        </select>
+      </div>
+      <div><label class="lbl">نوع الملاحظة</label>
+        <select class="inp" id="sobs_type" onchange="document.getElementById('sobs_other_row').style.display=this.value==='مخالفة أخرى'?'block':'none'">
+          <option value="">-- اختر --</option>
+          ${STUDENT_OBS_TYPES.map(t=>`<option>${t}</option>`).join("")}
+        </select>
+      </div>
+    </div>
+    <div id="sobs_other_row" style="display:none;margin-bottom:10px">
+      <label class="lbl">تفاصيل المخالفة</label>
+      <input class="inp" id="sobs_other" placeholder="اكتب تفاصيل المخالفة..."/>
+    </div>
+    <div style="margin-bottom:12px">
+      <label class="lbl">ملاحظات إضافية (اختياري)</label>
+      <textarea class="inp" id="sobs_note" rows="2" placeholder="أي تفاصيل إضافية..." style="resize:vertical"></textarea>
+    </div>
+    <button class="btn btn-navy btn-full" onclick="saveStudentObs()">💾 حفظ الملاحظة</button>
+  </div>
+
+  <!-- Student Obs List -->
+  <div class="card">
+    <p class="card-title"><span class="ct-icon" style="background:#DBEAFE">📋</span>سجل ملاحظات الطلاب (${studentObs.length})</p>
+    ${studentObs.length===0
+      ?`<div class="empty"><span class="empty-icon">🧑‍🎓</span>لا توجد ملاحظات مسجلة على الطلاب</div>`
+      :`<div style="display:flex;flex-direction:column;gap:8px">
+        ${studentObs.map(o=>`
+        <div style="background:var(--bg);border-radius:10px;padding:11px 14px;border-right:4px solid #3B82F6;position:relative">
+          <button class="del-btn" style="position:absolute;top:8px;left:8px" onclick="deleteStudentObs('${o.id}')">×</button>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
+            <span style="font-weight:800;color:var(--navy);font-size:13px">${o.name||"—"}</span>
+            ${o.grade?`<span style="background:#DBEAFE;color:#1E40AF;font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px">${o.grade}</span>`:""}
+            ${o.hall?`<span style="background:var(--border);color:var(--mid);font-size:10px;padding:2px 8px;border-radius:99px">لجنة ${o.hall}</span>`:""}
+            <span style="background:#FEF3C7;color:#92400E;font-size:11px;font-weight:700;padding:2px 10px;border-radius:99px">${o.obsType||"—"}</span>
+          </div>
+          ${o.note?`<p style="font-size:12px;color:var(--text);margin-top:4px">${o.note}</p>`:""}
+          <p style="font-size:10px;color:var(--muted);margin-top:4px">${fmt(o.savedAt)}</p>
+        </div>`).join("")}
+      </div>`}
+  </div>
+  ` : `
+  <!-- Teacher Form -->
+  <div class="card" style="margin-bottom:14px">
+    <p class="card-title"><span class="ct-icon" style="background:#D1FAE5">👨‍🏫</span>تسجيل ملاحظة على ملاحظ</p>
+    <div class="g2" style="margin-bottom:10px">
+      <div><label class="lbl">اسم الملاحظ</label>
+        <select class="inp" id="tobs_name">${teacherOptions()}</select>
+      </div>
+      <div><label class="lbl">رقم اللجنة / القاعة</label><input class="inp" id="tobs_hall" placeholder="مثال: ٣" type="text"/></div>
+    </div>
+    <div class="g2" style="margin-bottom:10px">
+      <div><label class="lbl">نوع الملاحظة</label>
+        <select class="inp" id="tobs_type" onchange="
+          const isOther=this.value==='مخالفة أخرى';
+          document.getElementById('tobs_other_row').style.display=isOther?'block':'none';
+          document.getElementById('tobs_sub_row').style.display=this.value==='طلب ملاحظ بديل'?'block':'none';">
+          <option value="">-- اختر --</option>
+          ${TEACHER_OBS_TYPES.map(t=>`<option>${t}</option>`).join("")}
+        </select>
+      </div>
+      <div><label class="lbl">الملاحظ البديل (إن وُجد)</label>
+        <div id="tobs_sub_row">
+          <select class="inp" id="tobs_sub">${teacherOptions()}</select>
+        </div>
+      </div>
+    </div>
+    <div id="tobs_other_row" style="display:none;margin-bottom:10px">
+      <label class="lbl">تفاصيل المخالفة</label>
+      <input class="inp" id="tobs_other" placeholder="اكتب تفاصيل المخالفة..."/>
+    </div>
+    <div style="margin-bottom:12px">
+      <label class="lbl">ملاحظات إضافية (اختياري)</label>
+      <textarea class="inp" id="tobs_note" rows="2" placeholder="أي تفاصيل إضافية..." style="resize:vertical"></textarea>
+    </div>
+    <button class="btn btn-green btn-full" onclick="saveTeacherObs()">💾 حفظ الملاحظة</button>
+  </div>
+
+  <!-- Teacher Obs List -->
+  <div class="card">
+    <p class="card-title"><span class="ct-icon" style="background:#D1FAE5">📋</span>سجل ملاحظات الملاحظين (${teacherObs.length})</p>
+    ${teacherObs.length===0
+      ?`<div class="empty"><span class="empty-icon">👨‍🏫</span>لا توجد ملاحظات مسجلة على الملاحظين</div>`
+      :`<div style="display:flex;flex-direction:column;gap:8px">
+        ${teacherObs.map(o=>`
+        <div style="background:var(--bg);border-radius:10px;padding:11px 14px;border-right:4px solid #10B981;position:relative">
+          <button class="del-btn" style="position:absolute;top:8px;left:8px" onclick="deleteStudentObs('${o.id}')">×</button>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
+            <span style="font-weight:800;color:var(--navy);font-size:13px">${o.name||"—"}</span>
+            ${o.hall?`<span style="background:var(--border);color:var(--mid);font-size:10px;padding:2px 8px;border-radius:99px">لجنة ${o.hall}</span>`:""}
+            <span style="background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700;padding:2px 10px;border-radius:99px">${o.obsType||"—"}</span>
+          </div>
+          ${o.substitute?`<p style="font-size:12px;color:#059669;font-weight:700;margin-top:3px">👤 الملاحظ البديل: ${o.substitute}</p>`:""}
+          ${o.note?`<p style="font-size:12px;color:var(--text);margin-top:4px">${o.note}</p>`:""}
+          <p style="font-size:10px;color:var(--muted);margin-top:4px">${fmt(o.savedAt)}</p>
+        </div>`).join("")}
+      </div>`}
+  </div>
+  `}
+
+  </div>`;
+}
+
+function saveStudentObs() {
+  const name = (document.getElementById("sobs_name")||{}).value?.trim();
+  const hall = (document.getElementById("sobs_hall")||{}).value?.trim();
+  const grade = (document.getElementById("sobs_grade")||{}).value;
+  const obsType = (document.getElementById("sobs_type")||{}).value;
+  const other = (document.getElementById("sobs_other")||{}).value?.trim();
+  const note = (document.getElementById("sobs_note")||{}).value?.trim();
+  if(!name) { toast("أدخل اسم الطالب","err"); return; }
+  if(!obsType) { toast("اختر نوع الملاحظة","err"); return; }
+  if(!state.monitorStudentObs) state.monitorStudentObs=[];
+  state.monitorStudentObs.push({
+    id:uid(), targetType:"student", name, hall, grade,
+    obsType: obsType==="مخالفة أخرى" ? (other||obsType) : obsType,
+    note, savedAt:nowISO(), recordedBy:currentUser.name
+  });
+  saveState(); saveToCloud();
+  toast("✅ تم تسجيل الملاحظة");
+  renderMonitorStudents(document.getElementById("pageContent"));
+}
+
+function saveTeacherObs() {
+  const name = (document.getElementById("tobs_name")||{}).value?.trim();
+  const hall = (document.getElementById("tobs_hall")||{}).value?.trim();
+  const obsType = (document.getElementById("tobs_type")||{}).value;
+  const other = (document.getElementById("tobs_other")||{}).value?.trim();
+  const note = (document.getElementById("tobs_note")||{}).value?.trim();
+  const substitute = (document.getElementById("tobs_sub")||{}).value?.trim();
+  if(!name) { toast("اختر اسم الملاحظ","err"); return; }
+  if(!obsType) { toast("اختر نوع الملاحظة","err"); return; }
+  if(!state.monitorStudentObs) state.monitorStudentObs=[];
+  state.monitorStudentObs.push({
+    id:uid(), targetType:"teacher", name, hall,
+    obsType: obsType==="مخالفة أخرى" ? (other||obsType) : obsType,
+    substitute: substitute||"", note, savedAt:nowISO(), recordedBy:currentUser.name
+  });
+  saveState(); saveToCloud();
+  toast("✅ تم تسجيل الملاحظة على الملاحظ");
+  renderMonitorStudents(document.getElementById("pageContent"));
+}
+
+function deleteStudentObs(id) {
+  state.monitorStudentObs = (state.monitorStudentObs||[]).filter(o=>o.id!==id);
+  saveState(); saveToCloud();
+  toast("تم الحذف");
+  renderMonitorStudents(document.getElementById("pageContent"));
+}
 
 function renderMonitorPledge(el) {
   const categories = [...new Set(PLEDGE_FORMS.map(f=>f.category))];
