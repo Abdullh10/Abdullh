@@ -3417,32 +3417,61 @@ function renderPrinBundle(el) {
 
 // ─── PRINCIPAL REPORT PAGE ──────────────────────
 function renderPrincipalReport(el) {
+  const stagesLen  = state.stages.length;
   const total      = state.bundles.length;
-  const done       = state.bundles.filter(b=>b.stage===state.stages.length-1).length;
-  const inProg     = state.bundles.filter(b=>b.stage>=0&&b.stage<state.stages.length-1).length;
-  const newB       = state.bundles.filter(b=>b.stage<0).length;
-  const incomplete = state.bundles.filter(b=>b.stage<state.stages.length-1).length;
+  const done       = state.bundles.filter(b=>b.stage===stagesLen-1).length;
+  const inProg     = state.bundles.filter(b=>b.stage>=0&&b.stage<stagesLen-1).length;
+  const notStarted = state.bundles.filter(b=>b.stage<0).length;
+  const incomplete = total - done;
   const totalPapers= state.bundles.reduce((a,b)=>a+b.count,0);
   const pct        = total>0?Math.round((done/total)*100):0;
-  if(!state.principalNotes) state.principalNotes="";
 
+  // today hijri string vs stored format
+  const todayISO   = new Date().toISOString().slice(0,10);
+  const todayH     = new Date().toLocaleDateString("ar-SA-u-ca-islamic-umalqura",{year:"numeric",month:"2-digit",day:"2-digit"});
+  const todayBundles = state.bundles.filter(b=>{
+    if(!b.examDate) return false;
+    if(b.examDate===todayISO) return true;
+    // hijri stored as "YYYY-MM-DDهـ"
+    if(b.examDate.endsWith("هـ")){
+      const hToday = currentHijriParts();
+      const [y,m,d2]= b.examDate.replace("هـ","").split("-").map(Number);
+      return y===hToday.y && m===hToday.m && d2===hToday.d;
+    }
+    return false;
+  });
+
+  // upcoming exams (next 7 days, excluding today)
+  const upcomingBundles = state.bundles.filter(b=>b.examDate && b.examDate!==todayISO && !b.examDate.endsWith("هـ") && b.examDate>todayISO).sort((a,b2)=>a.examDate.localeCompare(b2.examDate));
+
+  // stage pipeline
+  const stageMap = {};
+  state.stages.forEach((s,i)=>stageMap[i]={label:s,count:0});
+  stageMap[-1]={label:"لم تبدأ",count:0};
+  state.bundles.forEach(b=>{ const k=b.stage<0?-1:b.stage; if(stageMap[k]) stageMap[k].count++; });
+
+  // per-subject
+  const subjectMap={};
+  state.bundles.forEach(b=>{
+    const s=b.subject||"غير محدد";
+    if(!subjectMap[s]) subjectMap[s]={total:0,done:0,inProg:0,notStarted:0,papers:0};
+    subjectMap[s].total++; subjectMap[s].papers+=b.count;
+    if(b.stage===stagesLen-1) subjectMap[s].done++;
+    else if(b.stage>=0) subjectMap[s].inProg++;
+    else subjectMap[s].notStarted++;
+  });
+
+  // per-grade
   const gradeMap={};
   state.bundles.forEach(b=>{
     const g=b.grade||"غير محدد";
     if(!gradeMap[g]) gradeMap[g]={total:0,done:0,inProg:0,papers:0};
     gradeMap[g].total++; gradeMap[g].papers+=b.count;
-    if(b.stage===state.stages.length-1) gradeMap[g].done++;
+    if(b.stage===stagesLen-1) gradeMap[g].done++;
     else if(b.stage>=0) gradeMap[g].inProg++;
   });
 
-  const subjectMap={};
-  state.bundles.forEach(b=>{
-    if(!subjectMap[b.subject]) subjectMap[b.subject]={total:0,done:0,inProg:0,papers:0};
-    subjectMap[b.subject].total++; subjectMap[b.subject].papers+=b.count;
-    if(b.stage===state.stages.length-1) subjectMap[b.subject].done++;
-    else if(b.stage>=0) subjectMap[b.subject].inProg++;
-  });
-
+  // teacher map
   const tMap={};
   state.bundles.forEach(b=>{
     [b.corrector,b.corrector2,b.reviewer,b.reviewer2,b.auditor,b.auditor2].filter(Boolean).forEach(tid=>{
@@ -3450,127 +3479,277 @@ function renderPrincipalReport(el) {
       if(!t) return;
       if(!tMap[t.id]) tMap[t.id]={name:t.name,bundles:0,papers:0,done:0};
       tMap[t.id].bundles++; tMap[t.id].papers+=b.count;
-      if(b.stage===state.stages.length-1) tMap[t.id].done++;
+      if(b.stage===stagesLen-1) tMap[t.id].done++;
     });
   });
 
-  const incompleteBundles=state.bundles.filter(b=>b.stage<state.stages.length-1);
+  const incompleteBundles=state.bundles.filter(b=>b.stage<stagesLen-1);
+  const monitorNotes  = (state.monitorNotes||[]).length;
+  const monitorReports= (state.monitorReports||[]).length;
+
+  // progress ring SVG helper
+  function ring(pct2, color, size=64){
+    const r=26, circ=2*Math.PI*r, dash=circ*(pct2/100);
+    return `<svg width="${size}" height="${size}" viewBox="0 0 64 64" style="transform:rotate(-90deg)">
+      <circle cx="32" cy="32" r="${r}" fill="none" stroke="#E5E7EB" stroke-width="7"/>
+      <circle cx="32" cy="32" r="${r}" fill="none" stroke="${color}" stroke-width="7"
+        stroke-dasharray="${dash} ${circ}" stroke-linecap="round"/>
+    </svg>`;
+  }
+
+  function pctColor(p){ return p>=80?"#10B981":p>=50?"#F59E0B":"#EF4444"; }
+
+  function bar(p,color,height=7){
+    return `<div style="height:${height}px;background:#E5E7EB;border-radius:99px;overflow:hidden">
+      <div style="height:100%;width:${p}%;background:${color};border-radius:99px;transition:width .6s ease"></div>
+    </div>`;
+  }
 
   el.innerHTML=`
-  <!-- Buttons -->
-  <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
-    <button class="btn btn-navy" style="flex:1" onclick="generatePrincipalPDF()">📄 تقرير PDF شامل</button>
-    <button class="btn" style="flex:1;background:linear-gradient(135deg,#991B1B,var(--red))" onclick="generateIncompletePDF()">⚠️ تقرير المتأخرات</button>
+  <div class="page-wrap" style="max-width:860px">
+
+  <!-- Action Buttons -->
+  <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+    <button class="btn btn-navy" style="flex:1;min-width:140px" onclick="generatePrincipalPDF()">📄 تقرير PDF شامل</button>
+    <button class="btn" style="flex:1;min-width:140px;background:linear-gradient(135deg,#991B1B,#EF4444);color:#fff" onclick="generateIncompletePDF()">⚠️ تقرير المتأخرات</button>
+    <button class="btn" style="flex:1;min-width:140px;background:linear-gradient(135deg,#065F46,#10B981);color:#fff" onclick="generateSubjectsPDF()">📊 تقرير المواد</button>
   </div>
 
-  <!-- KPIs -->
-  <div class="card" style="margin-bottom:14px">
-    <p class="card-title"><span class="ct-icon" style="background:#D1FAE5">📊</span>الملخص التنفيذي</p>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-      <div style="background:#DBEAFE;border-radius:var(--r10);padding:10px;text-align:center">
-        <p style="font-size:22px;font-weight:900;color:#1E40AF">${total}</p>
-        <p style="font-size:10px;color:#1E40AF;font-weight:600">إجمالي المظاريف</p>
+  <!-- KPI Row -->
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px">
+
+    <!-- Overall ring -->
+    <div class="card" style="display:flex;align-items:center;gap:14px;padding:16px;grid-column:1/-1">
+      <div style="position:relative;flex-shrink:0">
+        ${ring(pct, pctColor(pct), 80)}
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+          <span style="font-size:16px;font-weight:900;color:${pctColor(pct)}">${pct}%</span>
+        </div>
       </div>
-      <div style="background:#D1FAE5;border-radius:var(--r10);padding:10px;text-align:center">
-        <p style="font-size:22px;font-weight:900;color:#065F46">${done}</p>
-        <p style="font-size:10px;color:#065F46;font-weight:600">✅ مكتملة</p>
+      <div style="flex:1">
+        <p style="font-size:15px;font-weight:800;color:var(--navy);margin-bottom:6px">نسبة الإنجاز الكلية</p>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:10px">${state.schoolName}</p>
+        ${bar(pct, pctColor(pct), 10)}
+        <div style="display:flex;gap:14px;margin-top:8px;flex-wrap:wrap">
+          <span style="font-size:11px;color:#059669;font-weight:700">✅ ${done} مكتمل</span>
+          <span style="font-size:11px;color:#D97706;font-weight:700">⏳ ${inProg} جارٍ</span>
+          <span style="font-size:11px;color:#64748B;font-weight:700">🆕 ${notStarted} جديد</span>
+          <span style="font-size:11px;color:var(--navy);font-weight:700">📄 ${totalPapers} ورقة</span>
+        </div>
       </div>
-      <div style="background:${pct>=80?"#D1FAE5":pct>=50?"#FEF3C7":"#DBEAFE"};border-radius:var(--r10);padding:10px;text-align:center">
-        <p style="font-size:22px;font-weight:900;color:${pct>=80?"#065F46":pct>=50?"#92400E":"#1E40AF"}">${pct}%</p>
-        <p style="font-size:10px;color:var(--mid);font-weight:600">نسبة الإنجاز</p>
-      </div>
-      <div style="background:#FEF3C7;border-radius:var(--r10);padding:10px;text-align:center">
-        <p style="font-size:22px;font-weight:900;color:#92400E">${inProg}</p>
-        <p style="font-size:10px;color:#92400E;font-weight:600">⏳ جارية</p>
-      </div>
-      <div style="background:#FEE2E2;border-radius:var(--r10);padding:10px;text-align:center">
-        <p style="font-size:22px;font-weight:900;color:#991B1B">${incomplete}</p>
-        <p style="font-size:10px;color:#991B1B;font-weight:600">⚠️ غير مكتملة</p>
-      </div>
-      <div style="background:var(--bg);border-radius:var(--r10);padding:10px;text-align:center">
-        <p style="font-size:22px;font-weight:900;color:var(--navy)">${totalPapers}</p>
-        <p style="font-size:10px;color:var(--muted);font-weight:600">📄 الأوراق</p>
-      </div>
+    </div>
+
+    <!-- KPI cards -->
+    <div style="background:linear-gradient(135deg,#1E40AF,#3B82F6);border-radius:14px;padding:14px;color:#fff;text-align:center">
+      <p style="font-size:30px;font-weight:900">${total}</p>
+      <p style="font-size:11px;opacity:.9;margin-top:2px">إجمالي المظاريف</p>
+    </div>
+    <div style="background:linear-gradient(135deg,#065F46,#10B981);border-radius:14px;padding:14px;color:#fff;text-align:center">
+      <p style="font-size:30px;font-weight:900">${done}</p>
+      <p style="font-size:11px;opacity:.9;margin-top:2px">مظاريف مكتملة ✅</p>
+    </div>
+    <div style="background:linear-gradient(135deg,#92400E,#F59E0B);border-radius:14px;padding:14px;color:#fff;text-align:center">
+      <p style="font-size:30px;font-weight:900">${incomplete}</p>
+      <p style="font-size:11px;opacity:.9;margin-top:2px">غير مكتملة ⚠️</p>
+    </div>
+    <div style="background:linear-gradient(135deg,#4C1D95,#8B5CF6);border-radius:14px;padding:14px;color:#fff;text-align:center">
+      <p style="font-size:30px;font-weight:900">${totalPapers}</p>
+      <p style="font-size:11px;opacity:.9;margin-top:2px">إجمالي الأوراق 📄</p>
     </div>
   </div>
 
-  <!-- Incomplete alert -->
-  ${incompleteBundles.length>0?`
-  <div class="card" style="margin-bottom:14px;border:2px solid var(--red)">
-    <p class="card-title"><span class="ct-icon" style="background:#FEE2E2">⚠️</span>المظاريف غير المكتملة (${incompleteBundles.length})</p>
-    ${incompleteBundles.slice(0,6).map(b=>{
-      const sn=b.stage<0?"جديد - لم تبدأ":state.stages[b.stage]||"—";
-      const ct=state.teachers.find(t=>t.id===b.corrector);
-      return "<div style='display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #FEE2E2'>"
-        +"<div style='width:7px;height:7px;border-radius:50%;background:var(--red);flex-shrink:0'></div>"
-        +"<div style='flex:1'><p style='font-size:13px;font-weight:700;color:var(--navy)'>"+b.subject+" — "+(b.grade||"—")+"</p>"
-        +"<p style='font-size:11px;color:var(--muted)'>"+sn+(ct?" | "+ct.name:"")+"</p></div>"
-        +"<span style='font-size:10px;font-family:monospace;color:var(--muted)'>"+b.barcode+"</span></div>";
-    }).join("")}
-    ${incompleteBundles.length>6?"<p style='font-size:12px;color:var(--muted);text-align:center;margin-top:8px'>... و "+(incompleteBundles.length-6)+" مظروف آخر في تقرير المتأخرات PDF</p>":""}
-  </div>`:"<div class='card' style='margin-bottom:14px;border:2px solid #10B981;background:#F0FDF4'><p style='text-align:center;color:#065F46;font-weight:700;font-size:14px;padding:10px'>✅ جميع المظاريف مكتملة</p></div>"}
-
-  <!-- By subject -->
-  <div class="card" style="margin-bottom:14px">
-    <p class="card-title"><span class="ct-icon" style="background:#FEF3C7">📚</span>الإنجاز حسب المادة</p>
-    <div style="overflow-x:auto">
-    <table class="data-table">
-      <thead><tr><th>المادة</th><th style="text-align:center">المظاريف</th><th style="text-align:center">✅ مكتمل</th><th style="text-align:center">⏳ جارٍ</th><th>نسبة الإنجاز</th><th></th></tr></thead>
-      <tbody>
-        ${Object.entries(subjectMap).map(([subj,d])=>{
-          const p=d.total>0?Math.round((d.done/d.total)*100):0;
-          const c=p>=80?"#10B981":p>=50?"#F59E0B":"#3B82F6";
-          return "<tr><td style='font-weight:700;color:var(--navy)'>"+subj+"</td>"
-            +"<td style='text-align:center'>"+d.total+"</td>"
-            +"<td style='text-align:center'><span style='color:#059669;font-weight:700'>"+d.done+"</span></td>"
-            +"<td style='text-align:center'><span style='color:#D97706;font-weight:700'>"+d.inProg+"</span></td>"
-            +"<td><div style='display:flex;align-items:center;gap:5px'><div style='flex:1;height:6px;background:var(--border);border-radius:99px;overflow:hidden;min-width:45px'><div style='height:100%;width:"+p+"%;background:"+c+";border-radius:99px'></div></div><span style='font-size:11px;font-weight:700;color:"+c+"'>"+p+"%</span></div></td>"
-            +"</tr>";
+  <!-- Today's Exams -->
+  <div class="card" style="margin-bottom:14px;border:2px solid ${todayBundles.length>0?"#3B82F6":"var(--border)"}">
+    <p class="card-title"><span class="ct-icon" style="background:#DBEAFE">📅</span>اختبارات اليوم
+      <span style="margin-right:auto;font-size:12px;font-weight:600;color:${todayBundles.length>0?"#1E40AF":"var(--muted)"}">${todayBundles.length} مادة</span>
+    </p>
+    ${todayBundles.length===0
+      ?`<div class="empty" style="padding:10px 0"><span class="empty-icon" style="font-size:28px">📅</span>لا توجد اختبارات مجدولة اليوم</div>`
+      :`<div style="display:flex;flex-direction:column;gap:8px">
+        ${todayBundles.map(b=>{
+          const stageName=b.stage<0?"لم تبدأ بعد":b.stage===stagesLen-1?"✅ مكتمل":state.stages[b.stage]||"—";
+          const stageColor=b.stage<0?"#64748B":b.stage===stagesLen-1?"#059669":"#D97706";
+          return `<div style="display:flex;align-items:center;gap:10px;background:var(--bg);border-radius:10px;padding:10px 12px;border:1px solid var(--border)">
+            <div style="width:10px;height:10px;border-radius:50%;background:${stageColor};flex-shrink:0"></div>
+            <div style="flex:1">
+              <span style="font-weight:700;color:var(--navy);font-size:13px">${b.subject}</span>
+              <span style="font-size:11px;color:var(--muted);margin-right:6px">${b.grade||""}</span>
+            </div>
+            <span style="font-size:11px;font-weight:700;color:${stageColor};background:${stageColor}15;padding:3px 10px;border-radius:99px">${stageName}</span>
+            <span style="font-size:10px;color:var(--muted)">${b.count} ورقة</span>
+          </div>`;
         }).join("")}
-      </tbody>
-    </table>
-    </div>
+      </div>`}
   </div>
 
-  <!-- By grade -->
-  ${Object.keys(gradeMap).length>0?`
+  <!-- Stage Pipeline -->
+  ${stagesLen>0?`
   <div class="card" style="margin-bottom:14px">
-    <p class="card-title"><span class="ct-icon" style="background:#EDE9FE">🎓</span>الإنجاز حسب الصف</p>
-    ${Object.entries(gradeMap).map(([grade,d])=>{
-      const p=d.total>0?Math.round((d.done/d.total)*100):0;
-      const c=p>=80?"#10B981":p>=50?"#F59E0B":"#3B82F6";
-      return "<div style='display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)'>"
-        +"<div style='flex:1'><div style='display:flex;justify-content:space-between;margin-bottom:5px'>"
-        +"<span style='font-weight:700;color:var(--navy)'>"+grade+"</span>"
-        +"<span style='font-size:11px;color:var(--muted)'>"+d.papers+" ورقة | ✅"+d.done+" ⏳"+d.inProg+"</span></div>"
-        +"<div style='height:7px;background:var(--border);border-radius:99px;overflow:hidden'>"
-        +"<div style='height:100%;width:"+p+"%;background:"+c+";border-radius:99px;transition:width .5s'></div></div></div>"
-        +"<div style='text-align:center;min-width:48px'><p style='font-size:18px;font-weight:900;color:"+c+"'>"+p+"%</p>"
-        +"<p style='font-size:10px;color:var(--muted)'>"+d.done+"/"+d.total+"</p></div></div>";
-    }).join("")}
+    <p class="card-title"><span class="ct-icon" style="background:#EDE9FE">🔄</span>توزيع المظاريف على المراحل</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${Object.entries(stageMap).sort((a,b2)=>Number(a[0])-Number(b2[0])).map(([idx,s])=>{
+        if(s.count===0) return "";
+        const p2=total>0?Math.round((s.count/total)*100):0;
+        const isLast=Number(idx)===stagesLen-1;
+        const isNew=Number(idx)<0;
+        const color=isLast?"#10B981":isNew?"#64748B":"#3B82F6";
+        return `<div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span style="font-size:12px;font-weight:700;color:var(--navy)">${isNew?"🆕 لم تبدأ":isLast?"✅ "+s.label:"⚙️ "+s.label}</span>
+            <span style="font-size:12px;font-weight:800;color:${color}">${s.count} (${p2}%)</span>
+          </div>
+          ${bar(p2,color,8)}
+        </div>`;
+      }).filter(Boolean).join("")}
+    </div>
   </div>`:""}
 
-  <!-- Teachers performance -->
+  <!-- Per-Subject Progress -->
+  <div class="card" style="margin-bottom:14px">
+    <p class="card-title"><span class="ct-icon" style="background:#FEF3C7">📚</span>نسبة إنجاز كل مقرر</p>
+    ${Object.keys(subjectMap).length===0
+      ?`<div class="empty">لا توجد مواد مسجلة</div>`
+      :`<div style="display:flex;flex-direction:column;gap:14px">
+        ${Object.entries(subjectMap).sort((a,b2)=>b2[1].total-a[1].total).map(([subj,d])=>{
+          const p2=d.total>0?Math.round((d.done/d.total)*100):0;
+          const col=pctColor(p2);
+          return `<div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+              <div>
+                <span style="font-size:13px;font-weight:800;color:var(--navy)">${subj}</span>
+                <span style="font-size:11px;color:var(--muted);margin-right:6px">${d.papers} ورقة</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:10px;color:#059669;font-weight:700">✅${d.done}</span>
+                <span style="font-size:10px;color:#D97706;font-weight:700">⏳${d.inProg}</span>
+                <span style="font-size:10px;color:#64748B;font-weight:700">🆕${d.notStarted}</span>
+                <span style="font-size:14px;font-weight:900;color:${col};min-width:38px;text-align:left">${p2}%</span>
+              </div>
+            </div>
+            ${bar(p2,col,9)}
+          </div>`;
+        }).join("")}
+      </div>`}
+  </div>
+
+  <!-- Per-Grade Progress -->
+  ${Object.keys(gradeMap).length>0?`
+  <div class="card" style="margin-bottom:14px">
+    <p class="card-title"><span class="ct-icon" style="background:#EDE9FE">🎓</span>نسبة إنجاز كل صف</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px">
+      ${Object.entries(gradeMap).sort((a,b2)=>b2[1].total-a[1].total).map(([grade,d])=>{
+        const p2=d.total>0?Math.round((d.done/d.total)*100):0;
+        const col=pctColor(p2);
+        return `<div style="background:var(--bg);border-radius:12px;padding:12px;border:2px solid ${col}30">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <span style="font-size:12px;font-weight:800;color:var(--navy)">${grade}</span>
+            <span style="font-size:18px;font-weight:900;color:${col}">${p2}%</span>
+          </div>
+          ${bar(p2,col,8)}
+          <div style="display:flex;justify-content:space-between;margin-top:6px">
+            <span style="font-size:10px;color:var(--muted)">${d.done}/${d.total} مظروف</span>
+            <span style="font-size:10px;color:var(--muted)">${d.papers} ورقة</span>
+          </div>
+        </div>`;
+      }).join("")}
+    </div>
+  </div>`:""}
+
+  <!-- Monitor Activity -->
+  ${(monitorNotes+monitorReports)>0?`
+  <div class="card" style="margin-bottom:14px">
+    <p class="card-title"><span class="ct-icon" style="background:#FCE7F3">👁</span>نشاط مراقب اللجان</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div style="background:#FDF4FF;border-radius:12px;padding:14px;text-align:center;border:1px solid #E9D5FF">
+        <p style="font-size:26px;font-weight:900;color:#7C3AED">${monitorNotes}</p>
+        <p style="font-size:11px;color:#7C3AED;font-weight:600;margin-top:2px">ملاحظة مُرسلة للكنترول</p>
+      </div>
+      <div style="background:#FFF0F3;border-radius:12px;padding:14px;text-align:center;border:1px solid #FECDD3">
+        <p style="font-size:26px;font-weight:900;color:#9D174D">${monitorReports}</p>
+        <p style="font-size:11px;color:#9D174D;font-weight:600;margin-top:2px">نموذج تعهد محفوظ</p>
+      </div>
+    </div>
+    ${(state.monitorNotes||[]).slice(-3).reverse().map(n=>`
+    <div style="margin-top:8px;background:var(--bg);border-radius:9px;padding:9px 12px;border-right:3px solid #7C3AED">
+      <p style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:2px">${n.subject||"—"} ${n.grade?"| "+n.grade:""} <span style="font-size:10px;color:var(--muted);font-weight:400">${inputDateToHijri(n.date)||""}</span></p>
+      <p style="font-size:12px;color:var(--text);line-height:1.6">${n.note}</p>
+    </div>`).join("")}
+  </div>`:""}
+
+  <!-- Incomplete Alert -->
+  ${incompleteBundles.length>0?`
+  <div class="card" style="margin-bottom:14px;border:2px solid #EF4444">
+    <p class="card-title"><span class="ct-icon" style="background:#FEE2E2">⚠️</span>المظاريف غير المكتملة
+      <span style="margin-right:auto;background:#EF4444;color:#fff;font-size:11px;font-weight:800;padding:2px 10px;border-radius:99px">${incompleteBundles.length}</span>
+    </p>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${incompleteBundles.slice(0,8).map(b=>{
+        const sn=b.stage<0?"🆕 لم تبدأ":"⚙️ "+(state.stages[b.stage]||"—");
+        return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:#FFF5F5;border-radius:9px;border:1px solid #FECACA">
+          <div style="flex:1">
+            <p style="font-size:13px;font-weight:700;color:var(--navy)">${b.subject} <span style="color:var(--muted);font-weight:400">— ${b.grade||"—"}</span></p>
+            <p style="font-size:11px;color:#991B1B;font-weight:600;margin-top:1px">${sn}</p>
+          </div>
+          <span style="font-size:10px;font-family:monospace;color:var(--muted);flex-shrink:0">${b.barcode}</span>
+        </div>`;
+      }).join("")}
+      ${incompleteBundles.length>8?`<p style="font-size:12px;color:var(--muted);text-align:center;padding:6px">... و ${incompleteBundles.length-8} مظروف آخر — اطلع على تقرير المتأخرات PDF</p>`:""}
+    </div>
+  </div>`
+  :`<div class="card" style="margin-bottom:14px;border:2px solid #10B981;background:#F0FDF4">
+      <p style="text-align:center;color:#065F46;font-weight:800;font-size:15px;padding:14px">🎉 جميع المظاريف مكتملة — أحسنتم!</p>
+    </div>`}
+
+  <!-- Teachers Performance -->
   ${Object.keys(tMap).length>0?`
   <div class="card">
     <p class="card-title"><span class="ct-icon" style="background:#DBEAFE">👨‍🏫</span>أداء المعلمين</p>
-    <div style="overflow-x:auto">
-    <table class="data-table">
-      <thead><tr><th>المعلم</th><th style="text-align:center">المظاريف</th><th style="text-align:center">الأوراق</th><th style="text-align:center">✅ منجز</th><th>نسبة الإنجاز</th></tr></thead>
-      <tbody>
-        ${Object.values(tMap).sort((a,b)=>b.papers-a.papers).map(d=>{
-          const p=d.bundles>0?Math.round((d.done/d.bundles)*100):0;
-          const c=p>=80?"#10B981":p>=50?"#F59E0B":"#3B82F6";
-          return "<tr><td style='font-weight:700;color:var(--navy);font-size:12px'>"+d.name+"</td>"
-            +"<td style='text-align:center'>"+d.bundles+"</td>"
-            +"<td style='text-align:center;color:var(--mid)'>"+d.papers+"</td>"
-            +"<td style='text-align:center'><span style='color:#059669;font-weight:700'>"+d.done+"</span></td>"
-            +"<td><div style='display:flex;align-items:center;gap:5px'><div style='flex:1;height:5px;background:var(--border);border-radius:99px;overflow:hidden;min-width:40px'><div style='height:100%;width:"+p+"%;background:"+c+";border-radius:99px'></div></div><span style='font-size:11px;font-weight:700;color:"+c+"'>"+p+"%</span></div></td></tr>";
-        }).join("")}
-      </tbody>
-    </table>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      ${Object.values(tMap).sort((a,b2)=>b2.papers-a.papers).map(d=>{
+        const p2=d.bundles>0?Math.round((d.done/d.bundles)*100):0;
+        const col=pctColor(p2);
+        return `<div style="display:flex;align-items:center;gap:10px">
+          <div style="width:34px;height:34px;border-radius:50%;background:${col}20;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <span style="font-size:14px;font-weight:900;color:${col}">${p2}%</span>
+          </div>
+          <div style="flex:1">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <span style="font-size:12px;font-weight:700;color:var(--navy)">${d.name}</span>
+              <span style="font-size:11px;color:var(--muted)">${d.done}/${d.bundles} | ${d.papers} ورقة</span>
+            </div>
+            ${bar(p2,col,6)}
+          </div>
+        </div>`;
+      }).join("")}
     </div>
-  </div>`:""}`;
+  </div>`:""}
+
+  </div>`;
+}
+
+function generateSubjectsPDF() {
+  const stagesLen=state.stages.length;
+  const printDate=new Date().toLocaleDateString("ar-SA-u-ca-islamic-umalqura",{dateStyle:"full"});
+  const subjectMap={};
+  state.bundles.forEach(b=>{
+    const s=b.subject||"غير محدد";
+    if(!subjectMap[s]) subjectMap[s]={total:0,done:0,inProg:0,notStarted:0,papers:0,bundles:[]};
+    subjectMap[s].total++; subjectMap[s].papers+=b.count; subjectMap[s].bundles.push(b);
+    if(b.stage===stagesLen-1) subjectMap[s].done++;
+    else if(b.stage>=0) subjectMap[s].inProg++;
+    else subjectMap[s].notStarted++;
+  });
+  const rows=Object.entries(subjectMap).map(([s,d])=>{
+    const p=d.total>0?Math.round((d.done/d.total)*100):0;
+    const c=p>=80?"#10B981":p>=50?"#F59E0B":"#EF4444";
+    return `<tr><td style="font-weight:700">${s}</td><td style="text-align:center">${d.total}</td><td style="text-align:center;color:#059669;font-weight:700">${d.done}</td><td style="text-align:center;color:#D97706;font-weight:700">${d.inProg}</td><td style="text-align:center;color:#64748B">${d.notStarted}</td><td style="text-align:center">${d.papers}</td><td style="text-align:center"><div style="display:inline-flex;align-items:center;gap:6px"><div style="width:60px;height:8px;background:#E5E7EB;border-radius:99px;overflow:hidden"><div style="height:100%;width:${p}%;background:${c}"></div></div><b style="color:${c}">${p}%</b></div></td></tr>`;
+  }).join("");
+  const total=state.bundles.length, done=state.bundles.filter(b=>b.stage===stagesLen-1).length;
+  const pct=total>0?Math.round((done/total)*100):0;
+  const win=window.open("","_blank","width=1050,height=800");
+  win.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/><title>تقرير المواد</title><style>@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Tajawal',sans-serif;direction:rtl;color:#0D1F3C;font-size:12px}.page{padding:22px}.header{border-bottom:3px solid #1E40AF;padding-bottom:12px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center}h1{font-size:18px;font-weight:900;color:#1E40AF}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}.kpi{border-radius:10px;padding:12px;text-align:center}.kpi-val{font-size:24px;font-weight:900}.kpi-lbl{font-size:10px;margin-top:3px;opacity:.8}table{width:100%;border-collapse:collapse}th{background:#1E40AF;color:#fff;padding:9px;text-align:right;font-weight:700;font-size:12px}td{padding:8px 9px;border-bottom:1px solid #e5e7eb}tr:nth-child(even){background:#f8fafc}.footer{margin-top:14px;padding-top:10px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;font-size:10px;color:#94a3b8}.no-print{margin-top:14px;display:flex;gap:8px}@media print{.no-print{display:none}}</style></head><body><div class="page"><div class="header"><div><h1>📊 تقرير نسب إنجاز المقررات</h1><p style="font-size:11px;color:#64748b;margin-top:3px">${state.schoolName} — ${printDate}</p></div><div style="background:#1E40AF;color:#fff;padding:6px 14px;border-radius:8px;font-size:14px;font-weight:700">الإنجاز الكلي: ${pct}%</div></div><div class="kpis"><div class="kpi" style="background:#DBEAFE;color:#1E40AF"><div class="kpi-val">${total}</div><div class="kpi-lbl">إجمالي المظاريف</div></div><div class="kpi" style="background:#D1FAE5;color:#065F46"><div class="kpi-val">${done}</div><div class="kpi-lbl">✅ مكتملة</div></div><div class="kpi" style="background:#FEF3C7;color:#92400E"><div class="kpi-val">${total-done}</div><div class="kpi-lbl">⚠️ غير مكتملة</div></div><div class="kpi" style="background:#EDE9FE;color:#4C1D95"><div class="kpi-val">${Object.keys(subjectMap).length}</div><div class="kpi-lbl">📚 عدد المواد</div></div></div><table><thead><tr><th>المادة</th><th style="text-align:center">المظاريف</th><th style="text-align:center">✅ مكتمل</th><th style="text-align:center">⏳ جارٍ</th><th style="text-align:center">🆕 جديد</th><th style="text-align:center">الأوراق</th><th style="text-align:center">نسبة الإنجاز</th></tr></thead><tbody>${rows}</tbody></table><div class="footer"><span>${state.schoolName}</span><span>طُبع بواسطة مدير المدرسة — ${printDate}</span></div><div class="no-print"><button onclick="window.print()" style="padding:8px 20px;background:#1E40AF;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;font-weight:700">طباعة / PDF</button><button onclick="window.close()" style="padding:8px 14px;background:#64748b;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit">إغلاق</button></div></div></body></html>`);
+  win.document.close();
+  toast("تم فتح تقرير المواد ✅");
 }
 
 function generateIncompletePDF() {
